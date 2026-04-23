@@ -1,0 +1,3 @@
+timestamp,asset,type,amount,fee,total_value,from_wallet,to_wallet,external_id
+2026-07-01 10:00:00,BTC,BUY,1.0,,30000,Fiat,Binance,mp_buy_1
+2026-07-10 10:00:00,BTC,SELL,1.0,,35000,Binance,Fiat,mp_sell_1

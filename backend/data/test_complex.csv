@@ -1,0 +1,7 @@
+timestamp,type,asset,amount,fee,from_wallet,to_wallet,network,external_id
+2024-01-01 10:00:00,TRANSFER,ETH,1.0,0.005,MyBinance,0xDepositAddress,ETH,tx_001
+2024-01-01 10:05:00,RECEIVE,ETH,0.995,0.0,0xDepositAddress,MyLedger,ETH,rx_001
+2024-01-02 12:00:00,TRANSFER,BTC,0.5,0.0001,Wallet_A,Wallet_B,BTC,tx_002
+2024-01-02 12:10:00,RECEIVE,BTC,0.5,0.0,Wallet_B,Wallet_C,BTC,rx_002
+2024-01-03 15:00:00,BUY,SOL,100.0,0.1,Exchange,MainWallet,SOL,tx_003
+2024-01-03 15:30:00,SELL,SOL,50.0,0.1,MainWallet,Exchange,SOL,tx_004

@@ -1,0 +1,67 @@
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.tox/
+.nox/
+.cache/
+nosetests.xml
+coverage.xml
+*.prototxt
+.ipynb_checkpoints
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+bin/
+lib64/
+lib/
+include/
+share/
+spec/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/dist/
+frontend/build/
+
+# Databases & Data
+*.db
+*.sqlite
+*.sqlite3
+backend/data/runs/
+backend/output/
+backend/output_test/
+backend/pytest_tmp/
+backend/manual_tmp2/
+backend/.pytest_tmp/
+
+# IDEs & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+docker-compose.override.yml

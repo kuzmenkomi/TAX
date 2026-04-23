@@ -1,0 +1,16 @@
+{
+  "matching": {
+    "max_amount_diff": 0.01,
+    "max_time_diff_seconds": 3600
+  },
+  "tax": {
+    "accounting_method": "FIFO",
+    "base_currency": "USD"
+  },
+  "reporting": {
+    "output_dir": "output",
+    "write_json": true,
+    "write_csv": true,
+    "write_summary": true
+  }
+}

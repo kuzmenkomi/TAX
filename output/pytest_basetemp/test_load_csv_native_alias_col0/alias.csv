@@ -1,0 +1,2 @@
+date,currency,side,quantity,commission,from_wallet,to_wallet
+2026-01-01 00:00:00,BTC,BUY,1.0,0.0,Exchange,Wallet

@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Production-ready)
+  postgres:
+    image: postgres:16-alpine
+    container_name: tax-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taxuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxpass123}
+      POSTGRES_DB: ${POSTGRES_DB:-tax_app_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taxuser} -d ${POSTGRES_DB:-tax_app_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tax-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: tax-backend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-taxuser}:${POSTGRES_PASSWORD:-taxpass123}@postgres:5432/${POSTGRES_DB:-tax_app_db}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - ./data/runs:/app/data/runs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - tax-network
+
+  # React Frontend (Nginx Production)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: tax-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tax-network
+
+volumes:
+  postgres_data:
+
+networks:
+  tax-network:
+    driver: bridge

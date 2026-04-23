@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaxFlow — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg2: #12151c;
+    --surface: #1e2330;
+    --surface2: #252b3b;
+    --border: rgba(255,255,255,0.07);
+    --accent: #6af0c8;
+    --accent2: #4d7aff;
+    --accent3: #f0a86a;
+    --text: #e8ecf5;
+    --text2: #8b93a8;
+    --text3: #5a6175;
+    --danger: #f06a6a;
+    --success: #6af0c8;
+    --sidebar-w: 220px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== TOPBAR ===== */
+  .topbar {
+    height: 56px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px 0 0;
+    gap: 0;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+  }
+
+  .topbar-logo {
+    width: var(--sidebar-w);
+    padding: 0 20px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    height: 100%;
+  }
+
+  .logo-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .topbar-search {
+    flex: 1;
+    padding: 0 20px;
+  }
+
+  .search-wrap {
+    position: relative;
+    max-width: 360px;
+  }
+
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px 7px 34px;
+    color: var(--text2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-wrap input:focus { border-color: rgba(106,240,200,0.3); }
+  .search-wrap input::placeholder { color: var(--text3); }
+
+  .search-icon {
+    position: absolute;
+    left: 10px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    font-size: 13px;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .country-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .country-select:hover { border-color: rgba(255,255,255,0.12); color: var(--text); }
+
+  .btn-add-wallet {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 12px rgba(106,240,200,0.25);
+  }
+
+  .btn-add-wallet:hover {
+    background: #88f5d8;
+    box-shadow: 0 4px 20px rgba(106,240,200,0.4);
+  }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text3);
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .icon-btn:hover { border-color: rgba(255,255,255,0.12); color: var(--text2); }
+
+  .notif-badge {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .user-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .user-btn:hover { border-color: rgba(255,255,255,0.12); color: var(--text); }
+
+  .avatar {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--bg);
+    flex-shrink: 0;
+  }
+
+  /* ===== LAYOUT ===== */
+  .app-layout {
+    display: flex;
+    margin-top: 56px;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 56px; bottom: 0; left: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+    overflow-y: auto;
+  }
+
+  .nav-section {
+    padding: 0 12px;
+    margin-bottom: 4px;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 8px 8px 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    position: relative;
+  }
+
+  .nav-item:hover { background: var(--surface); color: var(--text); }
+
+  .nav-item.active {
+    background: rgba(106,240,200,0.1);
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 20px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+
+  .nav-badge {
+    margin-left: auto;
+    background: rgba(106,240,200,0.15);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 100px;
+  }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 12px;
+  }
+
+  .plan-card {
+    background: linear-gradient(135deg, rgba(77,122,255,0.15), rgba(106,240,200,0.08));
+    border: 1px solid rgba(106,240,200,0.15);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .plan-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .plan-savings {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  .plan-savings strong { color: var(--text); font-weight: 500; }
+
+  .btn-upgrade {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-upgrade:hover { background: #88f5d8; }
+
+  /* ===== MAIN CONTENT ===== */
+  .main-content {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 32px 36px;
+    min-width: 0;
+  }
+
+  /* PAGE HEADER */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .page-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .page-subtitle { font-size: 13px; color: var(--text3); }
+
+  .year-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+  }
+
+  /* STAT CARDS */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card:hover { border-color: rgba(106,240,200,0.15); transform: translateY(-2px); }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .stat-card.green::before { background: radial-gradient(circle, rgba(106,240,200,0.08), transparent); }
+  .stat-card.blue::before  { background: radial-gradient(circle, rgba(77,122,255,0.08), transparent); }
+  .stat-card.orange::before{ background: radial-gradient(circle, rgba(240,168,106,0.08), transparent); }
+  .stat-card.red::before   { background: radial-gradient(circle, rgba(240,106,106,0.08), transparent); }
+
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text3);
+    font-weight: 500;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stat-label-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .stat-change {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .up   { color: var(--accent); }
+  .down { color: var(--danger); }
+  .neutral { color: var(--text3); }
+
+  /* CONTENT GRID */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  /* CHART CARD */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+
+  .card-subtitle { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg2);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .chart-tab {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    border: none;
+    background: none;
+  }
+
+  .chart-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  /* svg chart */
+  .chart-area {
+    height: 180px;
+    position: relative;
+  }
+
+  .chart-area svg { width: 100%; height: 100%; }
+
+  .chart-y-labels {
+    position: absolute;
+    left: 0; top: 0; bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .chart-y-labels span {
+    font-size: 10px;
+    color: var(--text3);
+  }
+
+  .chart-x-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0 0;
+  }
+
+  .chart-x-labels span { font-size: 10px; color: var(--text3); }
+
+  /* TAX SUMMARY CARD */
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Donut mini */
+  .donut-mini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0 16px;
+    position: relative;
+  }
+
+  .donut-mini svg { width: 120px; height: 120px; }
+
+  .donut-mini-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .donut-mini-center .dmv {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .donut-mini-center .dml {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .summary-rows { flex: 1; }
+
+  .summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+
+  .sr-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text2);
+  }
+
+  .sr-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sr-right {
+    font-weight: 500;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .btn-download {
+    margin-top: 16px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid rgba(106,240,200,0.25);
+    border-radius: 8px;
+    background: rgba(106,240,200,0.06);
+    color: var(--accent);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn-download:hover {
+    background: rgba(106,240,200,0.12);
+    border-color: rgba(106,240,200,0.4);
+  }
+
+  /* TRANSACTIONS TABLE */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .table-header {
+    padding: 20px 24px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-filters {
+    display: flex;
+    gap: 8px;
+  }
+
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text3);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .filter-btn.active, .filter-btn:hover {
+    border-color: rgba(106,240,200,0.25);
+    color: var(--accent);
+    background: rgba(106,240,200,0.06);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    padding: 10px 24px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text3);
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    cursor: default;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  td {
+    padding: 13px 24px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .tx-asset {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .asset-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    font-weight: 600;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .asset-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .asset-sub  { font-size: 11px; color: var(--text3); }
+
+  .tx-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .tx-type.buy  { background: rgba(106,240,200,0.1); color: var(--accent); }
+  .tx-type.sell { background: rgba(240,106,106,0.1); color: var(--danger); }
+  .tx-type.swap { background: rgba(77,122,255,0.1);  color: var(--accent2); }
+  .tx-type.recv { background: rgba(240,168,106,0.1); color: var(--accent3); }
+
+  .tx-gain.pos { color: var(--accent); font-weight: 500; }
+  .tx-gain.neg { color: var(--danger); font-weight: 500; }
+  .tx-gain.neu { color: var(--text3); }
+
+  .view-all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 6px;
+  }
+
+  .view-all:hover { background: rgba(106,240,200,0.04); }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(240,168,106,0.08);
+    border: 1px solid rgba(240,168,106,0.2);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .alert-icon { font-size: 16px; }
+  .alert-action { margin-left: auto; color: var(--accent3); font-weight: 500; cursor: pointer; flex-shrink: 0; }
+  .alert-action:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <a href="#" class="topbar-logo">
+    <span class="logo-dot"></span>
+    TaxFlow
+  </a>
+  <div class="topbar-search">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search transactions, wallets, assets…">
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="country-select">🌐 Brazil (BR) ▾</div>
+    <button class="btn-add-wallet">+ Add wallet</button>
+    <div class="icon-btn">🔔<span class="notif-badge"></span></div>
+    <div class="user-btn">
+      <div class="avatar">TF</div>
+      test_user ▾
+    </div>
+    <div class="icon-btn" style="font-size:12px;color:var(--text3)">Log out</div>
+  </div>
+</header>
+
+<!-- LAYOUT -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="nav-section">
+      <a href="#" class="nav-item active">
+        <span class="nav-icon">⊞</span> Dashboard
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⇄</span> Transactions
+        <span class="nav-badge">1,284</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">%</span> Taxes
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">≡</span> Reconciliation
+      </a>
+    </div>
+    <div class="nav-section" style="margin-top:8px">
+      <div class="nav-section-label">Tools</div>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">✦</span> AI Advisor
+        <span class="nav-badge" style="background:rgba(77,122,255,0.15);color:var(--accent2)">New</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">🔔</span> Alerts
+      </a>
+    </div>
+    <div class="nav-section" style="margin-top:8px">
+      <div class="nav-section-label">Imports</div>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">◎</span> Wallets
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⇌</span> Exchanges
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⬡</span> Plugins
+      </a>
+    </div>
+    <div class="nav-section" style="margin-top:8px">
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⚙</span> Settings
+      </a>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="plan-card">
+        <div class="plan-label">Pro Plan</div>
+        <div class="plan-savings">You've saved <strong>$1,240</strong> in taxes this year.</div>
+        <button class="btn-upgrade">Upgrade Plan</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <!-- Alert -->
+    <div class="alert-banner">
+      <span class="alert-icon">⚠</span>
+      <span>Tax deadline <strong>April 15</strong> is approaching — your report is ready to download.</span>
+      <span class="alert-action">Download report →</span>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">Tax year overview · Last synced 2 min ago</div>
+      </div>
+      <div class="year-select">📅 Tax Year 2024 ▾</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-label"><span class="stat-label-dot" style="background:var(--accent)"></span>Total Tax Owed</div>
+        <div class="stat-value">$12,840</div>
+        <div class="stat-change up">↑ 18% vs 2023</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label"><span class="stat-label-dot" style="background:var(--accent2)"></span>Capital Gains</div>
+        <div class="stat-value">$48,320</div>
+        <div class="stat-change up">↑ 34% vs 2023</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label"><span class="stat-label-dot" style="background:var(--accent3)"></span>Capital Losses</div>
+        <div class="stat-value">$9,140</div>
+        <div class="stat-change down">↓ 5% vs 2023</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label"><span class="stat-label-dot" style="background:var(--text3)"></span>Transactions</div>
+        <div class="stat-value">1,284</div>
+        <div class="stat-change neutral">Across 6 wallets</div>
+      </div>
+    </div>
+
+    <!-- Chart + Summary -->
+    <div class="content-grid">
+
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Gains & Losses</div>
+            <div class="card-subtitle">Monthly breakdown for 2024</div>
+          </div>
+          <div class="chart-tabs">
+            <button class="chart-tab active">Month</button>
+            <button class="chart-tab">Quarter</button>
+            <button class="chart-tab">Year</button>
+          </div>
+        </div>
+        <div class="chart-area">
+          <svg viewBox="0 0 560 180" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="gainGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6af0c8" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#6af0c8" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="lossGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f06a6a" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#f06a6a" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- grid lines -->
+            <line x1="0" y1="36" x2="560" y2="36" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="0" y1="72" x2="560" y2="72" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="0" y1="108" x2="560" y2="108" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="0" y1="144" x2="560" y2="144" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <!-- gains area -->
+            <path d="M0,130 C30,120 60,90 93,85 C126,80 150,100 186,75 C222,50 250,40 280,35 C310,30 340,55 373,48 C406,41 430,30 466,25 C502,20 530,32 560,28 L560,180 L0,180 Z" fill="url(#gainGrad)"/>
+            <path d="M0,130 C30,120 60,90 93,85 C126,80 150,100 186,75 C222,50 250,40 280,35 C310,30 340,55 373,48 C406,41 430,30 466,25 C502,20 530,32 560,28" fill="none" stroke="#6af0c8" stroke-width="2" stroke-linecap="round"/>
+            <!-- loss area -->
+            <path d="M0,155 C40,150 80,145 120,148 C160,151 200,158 240,155 C280,152 320,160 360,155 C400,150 440,145 480,148 C510,150 540,153 560,151 L560,180 L0,180 Z" fill="url(#lossGrad)"/>
+            <path d="M0,155 C40,150 80,145 120,148 C160,151 200,158 240,155 C280,152 320,160 360,155 C400,150 440,145 480,148 C510,150 540,153 560,151" fill="none" stroke="#f06a6a" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3" opacity="0.7"/>
+            <!-- dots -->
+            <circle cx="280" cy="35" r="3.5" fill="#6af0c8"/>
+            <circle cx="466" cy="25" r="3.5" fill="#6af0c8"/>
+          </svg>
+        </div>
+        <div class="chart-x-labels">
+          <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span>
+          <span>May</span><span>Jun</span><span>Jul</span><span>Aug</span>
+          <span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+        </div>
+      </div>
+
+      <!-- Tax Summary -->
+      <div class="summary-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Tax Breakdown</div>
+            <div class="card-subtitle">2024 summary</div>
+          </div>
+        </div>
+        <div class="donut-mini">
+          <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="16"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="#6af0c8" stroke-width="16"
+              stroke-dasharray="116 173" stroke-dashoffset="0" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="#4d7aff" stroke-width="16"
+              stroke-dasharray="79 210" stroke-dashoffset="-116" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="#f0a86a" stroke-width="16"
+              stroke-dasharray="53 236" stroke-dashoffset="-195" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+            <circle cx="60" cy="60" r="38" fill="var(--surface)"/>
+          </svg>
+          <div class="donut-mini-center">
+            <div class="dmv">$12.8K</div>
+            <div class="dml">Total</div>
+          </div>
+        </div>
+
+        <div class="summary-rows">
+          <div class="summary-row">
+            <div class="sr-left"><span class="sr-dot" style="background:#6af0c8"></span>Short-term gains</div>
+            <div class="sr-right">$8,210</div>
+          </div>
+          <div class="summary-row">
+            <div class="sr-left"><span class="sr-dot" style="background:#4d7aff"></span>Long-term gains</div>
+            <div class="sr-right">$5,480</div>
+          </div>
+          <div class="summary-row">
+            <div class="sr-left"><span class="sr-dot" style="background:#f0a86a"></span>DeFi & staking</div>
+            <div class="sr-right">$1,850</div>
+          </div>
+          <div class="summary-row">
+            <div class="sr-left"><span class="sr-dot" style="background:#f06a6a"></span>Losses offset</div>
+            <div class="sr-right" style="color:var(--danger)">−$2,700</div>
+          </div>
+        </div>
+
+        <button class="btn-download">⬇ Download Form 8949</button>
+      </div>
+
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <div>
+          <div class="card-title">Recent Transactions</div>
+          <div class="card-subtitle">1,284 transactions synced</div>
+        </div>
+        <div class="table-filters">
+          <button class="filter-btn active">All</button>
+          <button class="filter-btn">Buy</button>
+          <button class="filter-btn">Sell</button>
+          <button class="filter-btn">Swap</button>
+          <button class="filter-btn">DeFi</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Price</th>
+            <th>Gain / Loss</th>
+            <th>Wallet</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="tx-asset"><div class="asset-icon" style="background:rgba(247,147,26,0.15);color:#f7931a">₿</div><div><div class="asset-name">Bitcoin</div><div class="asset-sub">BTC</div></div></div></td>
+            <td><span class="tx-type sell">● Sell</span></td>
+            <td>Dec 14, 2024</td>
+            <td>0.35 BTC</td>
+            <td>$38,240</td>
+            <td class="tx-gain pos">+$12,400</td>
+            <td style="color:var(--text3)">Ledger #1</td>
+          </tr>
+          <tr>
+            <td><div class="tx-asset"><div class="asset-icon" style="background:rgba(98,126,234,0.15);color:#627eea">Ξ</div><div><div class="asset-name">Ethereum</div><div class="asset-sub">ETH</div></div></div></td>
+            <td><span class="tx-type swap">⇄ Swap</span></td>
+            <td>Nov 28, 2024</td>
+            <td>2.5 ETH</td>
+            <td>$2,180</td>
+            <td class="tx-gain neg">−$3,240</td>
+            <td style="color:var(--text3)">MetaMask</td>
+          </tr>
+          <tr>
+            <td><div class="tx-asset"><div class="asset-icon" style="background:rgba(106,240,200,0.12);color:#6af0c8">◎</div><div><div class="asset-name">Solana</div><div class="asset-sub">SOL</div></div></div></td>
+            <td><span class="tx-type buy">● Buy</span></td>
+            <td>Oct 5, 2024</td>
+            <td>45 SOL</td>
+            <td>$142</td>
+            <td class="tx-gain neu">—</td>
+            <td style="color:var(--text3)">Phantom</td>
+          </tr>
+          <tr>
+            <td><div class="tx-asset"><div class="asset-icon" style="background:rgba(77,122,255,0.15);color:#4d7aff">⬡</div><div><div class="asset-name">Polygon</div><div class="asset-sub">MATIC</div></div></div></td>
+            <td><span class="tx-type recv">↓ Receive</span></td>
+            <td>Sep 19, 2024</td>
+            <td>1,200 MATIC</td>
+            <td>$0.84</td>
+            <td class="tx-gain pos">+$1,840</td>
+            <td style="color:var(--text3)">MetaMask</td>
+          </tr>
+          <tr>
+            <td><div class="tx-asset"><div class="asset-icon" style="background:rgba(240,168,106,0.12);color:#f0a86a">B</div><div><div class="asset-name">BNB</div><div class="asset-sub">BNB</div></div></div></td>
+            <td><span class="tx-type sell">● Sell</span></td>
+            <td>Aug 30, 2024</td>
+            <td>8 BNB</td>
+            <td>$320</td>
+            <td class="tx-gain pos">+$2,100</td>
+            <td style="color:var(--text3)">Binance</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="view-all">View all transactions →</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Tab switching for chart
+document.querySelectorAll('.chart-tab').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// Nav items
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

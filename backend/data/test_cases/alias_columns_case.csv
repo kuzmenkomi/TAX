@@ -1,0 +1,5 @@
+date,currency,side,quantity,commission,total_value,from_wallet,to_wallet,external_id
+2026-08-01 10:00:00,btc,buy,1.0,,30000,Fiat,Binance,al_buy_1
+2026-08-02 10:30:00,btc,transfer,0.5,0.0005,16000,Binance,Ledger,al_tr_1
+2026-08-02 10:45:00,btc,receive,0.4995,0.0,15984,Unknown,Ledger,al_rcv_1
+2026-08-10 11:00:00,btc,sell,1.0,,35000,Binance,Fiat,al_sell_1

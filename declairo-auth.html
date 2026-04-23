@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaxFlow — Log in</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg2: #12151c;
+    --surface: #1e2330;
+    --surface2: #252b3b;
+    --border: rgba(255,255,255,0.07);
+    --border-focus: rgba(106,240,200,0.35);
+    --accent: #6af0c8;
+    --accent2: #4d7aff;
+    --text: #e8ecf5;
+    --text2: #8b93a8;
+    --text3: #5a6175;
+    --danger: #f06a6a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* bg grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 80px 80px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* top glow */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 700px; height: 400px;
+    background: radial-gradient(ellipse, rgba(106,240,200,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* NAV */
+  nav {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .nav-right {
+    font-size: 13px;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-right a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .nav-right a:hover { text-decoration: underline; }
+
+  /* MAIN */
+  main {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+
+  /* TABS */
+  .auth-wrapper {
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px;
+    margin-bottom: 24px;
+    gap: 4px;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text3);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+
+  /* CARD */
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    animation: fadein 0.3s ease;
+  }
+
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-top {
+    background: var(--bg2);
+    padding: 32px 36px 28px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-top::after {
+    content: '';
+    position: absolute;
+    top: -50px; right: -50px;
+    width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(106,240,200,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .card-top h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .card-top p {
+    font-size: 14px;
+    color: var(--text3);
+  }
+
+  .card-body {
+    padding: 32px 36px;
+  }
+
+  /* FORM */
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  .form-label a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  .form-label a:hover { text-decoration: underline; }
+
+  .input-wrap {
+    position: relative;
+  }
+
+  .input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    font-size: 15px;
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+
+  .input-wrap input {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px 12px 40px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .input-wrap input::placeholder { color: var(--text3); }
+
+  .input-wrap input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(106,240,200,0.08);
+  }
+
+  .input-wrap input:focus + .input-icon,
+  .input-wrap:focus-within .input-icon {
+    color: var(--accent);
+  }
+
+  .input-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 0;
+    transition: color 0.2s;
+  }
+
+  .input-toggle:hover { color: var(--text2); }
+
+  .input-wrap input.has-toggle { padding-right: 42px; }
+
+  /* BTN */
+  .btn-submit {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    box-shadow: 0 4px 20px rgba(106,240,200,0.25);
+  }
+
+  .btn-submit:hover {
+    background: #88f5d8;
+    box-shadow: 0 6px 28px rgba(106,240,200,0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-submit:active { transform: translateY(0); }
+
+  /* DIVIDER */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0;
+    color: var(--text3);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .or-divider::before, .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* SOCIAL */
+  .social-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .btn-social {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-social:hover {
+    border-color: rgba(255,255,255,0.12);
+    color: var(--text);
+    background: var(--surface2);
+  }
+
+  /* FOOTER TEXT */
+  .auth-footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text3);
+  }
+
+  .auth-footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .auth-footer a:hover { text-decoration: underline; }
+
+  /* LEGAL */
+  .legal {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 24px;
+    line-height: 1.7;
+  }
+
+  .legal a { color: var(--accent); text-decoration: none; }
+
+  /* REGISTER EXTRA */
+  .name-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* TAB PANELS */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* STRENGTH */
+  .strength-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .strength-seg {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+
+  .strength-label {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="taxflow-landing.html" class="logo">
+    <span class="logo-dot"></span>
+    TaxFlow
+  </a>
+  <div class="nav-right">
+    🌐 EN
+  </div>
+</nav>
+
+<main>
+  <div class="auth-wrapper">
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">Log in</button>
+      <button class="tab-btn" onclick="switchTab('register')">Create account</button>
+    </div>
+
+    <div class="auth-card">
+
+      <!-- LOGIN -->
+      <div id="panel-login" class="tab-panel active">
+        <div class="card-top">
+          <h1>Welcome back</h1>
+          <p>Log in to your TaxFlow account</p>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <div class="form-label">Email</div>
+            <div class="input-wrap">
+              <span class="input-icon">✉</span>
+              <input type="email" placeholder="you@example.com">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">
+              Password
+              <a href="#">Forgot password?</a>
+            </div>
+            <div class="input-wrap">
+              <span class="input-icon">🔒</span>
+              <input type="password" id="login-pass" class="has-toggle" placeholder="••••••••">
+              <button class="input-toggle" onclick="togglePass('login-pass', this)">👁</button>
+            </div>
+          </div>
+
+          <button class="btn-submit">Continue →</button>
+
+          <div class="or-divider">or</div>
+
+          <div class="social-btns">
+            <a href="#" class="btn-social">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google
+            </a>
+            <a href="#" class="btn-social">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text2)"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="panel-register" class="tab-panel">
+        <div class="card-top">
+          <h1>Create account</h1>
+          <p>Start calculating your crypto taxes for free</p>
+        </div>
+        <div class="card-body">
+          <div class="name-row">
+            <div class="form-group">
+              <div class="form-label">First name</div>
+              <div class="input-wrap">
+                <span class="input-icon">👤</span>
+                <input type="text" placeholder="Alex">
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-label">Last name</div>
+              <div class="input-wrap">
+                <span class="input-icon" style="opacity:0">·</span>
+                <input type="text" placeholder="Smith" style="padding-left:14px">
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Email</div>
+            <div class="input-wrap">
+              <span class="input-icon">✉</span>
+              <input type="email" placeholder="you@example.com">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Password</div>
+            <div class="input-wrap">
+              <span class="input-icon">🔒</span>
+              <input type="password" id="reg-pass" class="has-toggle" placeholder="Min. 8 characters" oninput="checkStrength(this.value)">
+              <button class="input-toggle" onclick="togglePass('reg-pass', this)">👁</button>
+            </div>
+            <div class="strength-bar">
+              <div class="strength-seg" id="s1"></div>
+              <div class="strength-seg" id="s2"></div>
+              <div class="strength-seg" id="s3"></div>
+              <div class="strength-seg" id="s4"></div>
+            </div>
+            <div class="strength-label" id="strength-label"></div>
+          </div>
+
+          <button class="btn-submit">Create account →</button>
+
+          <div class="or-divider">or</div>
+
+          <div class="social-btns">
+            <a href="#" class="btn-social">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google
+            </a>
+            <a href="#" class="btn-social">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text2)"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /auth-card -->
+
+    <div class="legal">
+      By signing up, you agree to our
+      <a href="#">Terms of Service</a> & <a href="#">Privacy Policy</a>
+    </div>
+
+  </div>
+</main>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', (i===0 && tab==='login') || (i===1 && tab==='register'));
+  });
+  document.getElementById('panel-login').classList.toggle('active', tab==='login');
+  document.getElementById('panel-register').classList.toggle('active', tab==='register');
+}
+
+function togglePass(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+function checkStrength(val) {
+  let score = 0;
+  if (val.length >= 8) score++;
+  if (/[A-Z]/.test(val)) score++;
+  if (/[0-9]/.test(val)) score++;
+  if (/[^A-Za-z0-9]/.test(val)) score++;
+  const colors = ['', '#f06a6a', '#f0a86a', '#6af0c8', '#4d7aff'];
+  const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('s'+i).style.background = i <= score ? colors[score] : 'var(--border)';
+  }
+  document.getElementById('strength-label').textContent = val.length > 0 ? labels[score] : '';
+  document.getElementById('strength-label').style.color = colors[score];
+}
+</script>
+</body>
+</html>

@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.accounting.price_fill import fill_missing_prices
 from app.accounting.pricing import PriceService
 from app.integrations.blockchain_explorer import fetch_wallet_transactions
-from app.models import AnalysisRun, ImportJob, User, WalletConnection
+from app.models import AnalysisRun, ImportJob, Transaction, User, WalletConnection
 from app.services.portfolio_service import get_or_create_portfolio
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -74,13 +75,48 @@ def list_connections(db: Session, user: User) -> dict[str, list[dict[str, object
         .all()
     )
     wallets = db.query(WalletConnection).filter(WalletConnection.user_id == user.id).all()
+
+    # --- count transactions per wallet (from_wallet == str(wallet.id)) ---
+    wallet_tx_counts: dict[int, int] = {}
+    if wallets:
+        rows = (
+            db.query(Transaction.from_wallet, func.count(Transaction.id))
+            .filter(
+                Transaction.user_id == user.id,
+                Transaction.from_wallet.in_([str(w.id) for w in wallets]),
+            )
+            .group_by(Transaction.from_wallet)
+            .all()
+        )
+        wallet_tx_counts = {int(wid): cnt for wid, cnt in rows}
+
+    from app.services.exchange_service import count_exchange_transactions
+
     return {
         "exchanges": [
-            {"id": ex.id, "provider": ex.provider, "label": ex.label, "status": ex.status}
+            {
+                "id": ex.id,
+                "provider": ex.provider,
+                "exchange_name": ex.exchange_name or ex.provider,
+                "label": ex.label,
+                "status": ex.status,
+                "last_synced_at": ex.last_synced_at.isoformat() if ex.last_synced_at else None,
+                "last_sync_at": ex.last_synced_at.isoformat() if ex.last_synced_at else None,
+                "transaction_count": count_exchange_transactions(db, ex),
+                "balance": 0.0,
+            }
             for ex in exchanges
         ],
         "wallets": [
-            {"id": wallet.id, "chain": wallet.chain, "address": wallet.address, "label": wallet.label}
+            {
+                "id": wallet.id,
+                "chain": wallet.chain,
+                "address": wallet.address,
+                "label": wallet.label,
+                "transaction_count": wallet_tx_counts.get(wallet.id, 0),
+                "last_synced_at": wallet.last_synced_at.isoformat() if wallet.last_synced_at else None,
+                "sync_status": wallet.sync_status,
+            }
             for wallet in wallets
         ],
     }
@@ -151,6 +187,9 @@ def import_blockchain_wallet(
         db.commit()
         db.refresh(analysis_run)
 
+        from app.services.transaction_service import save_transactions_from_df
+        save_transactions_from_df(db, user.id, analysis_run.id, df)
+
         return {
             "wallet_id": wallet.id,
             "import_job_id": import_job.id,
@@ -168,3 +207,24 @@ def import_blockchain_wallet(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import blockchain wallet: {exc}",
         ) from exc
+
+
+def delete_wallet(
+    db: Session,
+    user: User,
+    wallet_id: int,
+) -> WalletConnection:
+    wallet = (
+        db.query(WalletConnection)
+        .filter(
+            WalletConnection.id == wallet_id,
+            WalletConnection.user_id == user.id,
+        )
+        .first()
+    )
+    if not wallet:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wallet not found")
+
+    db.delete(wallet)
+    db.commit()
+    return wallet

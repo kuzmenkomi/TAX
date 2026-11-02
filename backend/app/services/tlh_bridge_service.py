@@ -31,7 +31,11 @@ class TLHBridgeService:
         # 1. Fetch transactions
         transactions = db.query(Transaction).filter(Transaction.user_id == user_id).all()
         if not transactions:
-            return {"opportunities_found": 0, "total_loss": 0}
+            return {
+                "opportunities_found": 0,
+                "total_harvestable_losses": Decimal("0"),
+                "total_tax_benefit": Decimal("0"),
+            }
 
         # 2. Calculate current positions (simplistic approach for the bridge)
         # In a full implementation, we'd use CostBasisCalculator more extensively

@@ -3,8 +3,8 @@
 // Все компоненты читают данные отсюда
 // ============================================================
 
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { AnalyzeResult } from '../api/client';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { AnalyzeResult } from '../api/v1';
 
 interface AppState {
   // Results
@@ -36,6 +36,16 @@ interface AppState {
   // Загруженный файл
   uploadedFile: File | null;
   setUploadedFile: (file: File | null) => void;
+
+  // Версия данных — инкрементируется при добавлении кошелька/CSV/биржи
+  // Все страницы подписываются на это значение для авто-обновления
+  dataVersion: number;
+  bumpDataVersion: () => void;
+
+  // Приватный режим для сумм и балансов
+  isPrivacyMode: boolean;
+  setIsPrivacyMode: (hidden: boolean) => void;
+  togglePrivacyMode: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -49,6 +59,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [accountingMethod, setAccountingMethod] = useState('FIFO');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
+  const [isPrivacyMode, setIsPrivacyModeState] = useState<boolean>(() => localStorage.getItem('declairo_privacy_mode') === 'true');
+  const bumpDataVersion = useCallback(() => setDataVersion(v => v + 1), []);
+  const setIsPrivacyMode = useCallback((hidden: boolean) => {
+    setIsPrivacyModeState(hidden);
+    localStorage.setItem('declairo_privacy_mode', String(hidden));
+  }, []);
+  const togglePrivacyMode = useCallback(() => {
+    setIsPrivacyModeState((prev) => {
+      const next = !prev;
+      localStorage.setItem('declairo_privacy_mode', String(next));
+      return next;
+    });
+  }, []);
 
   const handleSetJurisdiction = (code: string) => {
     setCurrentJurisdiction(code);
@@ -65,6 +89,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       error, setError,
       accountingMethod, setAccountingMethod,
       uploadedFile, setUploadedFile,
+      dataVersion, bumpDataVersion,
+      isPrivacyMode, setIsPrivacyMode, togglePrivacyMode,
     }}>
       {children}
     </AppContext.Provider>

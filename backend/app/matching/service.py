@@ -77,6 +77,24 @@ def _from_to_match(transfer: pd.Series, receive: pd.Series) -> bool:
     return t_from == r_from and t_to == r_to
 
 
+def _compute_confidence(transfer: pd.Series, receive: pd.Series, amount_diff: float) -> float:
+    """Heuristic 0..1 confidence for a transfer/receive candidate."""
+    base = 0.45
+    try:
+        amt = abs(float(transfer.get("amount") or 0))
+    except (TypeError, ValueError):
+        amt = 0.0
+    if amount_diff <= 0.0001:
+        base += 0.35
+    elif amt > 0 and amount_diff / amt <= 0.01:
+        base += 0.2
+    if _wallet_match(transfer, receive):
+        base += 0.1
+    if _from_to_match(transfer, receive):
+        base += 0.15
+    return min(1.0, base)
+
+
 def _generate_explanation(transfer: pd.Series, receive: pd.Series, amount_diff: float, time_diff: int, cfg: MatchingConfig) -> str:
     reasons = []
     if _wallet_match(transfer, receive):

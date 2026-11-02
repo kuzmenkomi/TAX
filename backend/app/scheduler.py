@@ -1,45 +1,46 @@
-"""
-scheduler.py — Background Task Scheduler (Production-Ready)
-═══════════════════════════════════════════════════════════
-
-Uses APScheduler to run periodic background tasks:
-  • Wallet sync     — every 30 min
-  • Exchange sync   — every 60 min
-  • Price updates   — every 15 min
-  • Stale sync scan — every 10 min (finds due connections)
-
-All functions are importable from routers via `from app.scheduler import ...`.
-"""
-
+"""Background task scheduler helpers."""
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.jobstores.memory import MemoryJobStore
+from apscheduler.schedulers.background import BackgroundScheduler
 
+from app.core.config import get_settings
+from app.core.db import engine
 from app.db import SessionLocal
-from app.models import WalletConnection, ExchangeConnection
+from app.models import ExchangeConnection, WalletConnection
 from app.services.sync_service import SyncService
 
 logger = logging.getLogger(__name__)
 
-# ─── Scheduler Singleton ────────────────────────────────────────────────────
-
+_SCHEDULER_LOCK_KEY = 22042601
 _scheduler: BackgroundScheduler | None = None
+_scheduler_lock_conn: Any | None = None
+_scheduler_state_lock = Lock()
 
 
 def _create_scheduler() -> BackgroundScheduler:
     """Create and configure the APScheduler instance."""
-    jobstores = {"default": MemoryJobStore()}
+    settings = get_settings()
+    if settings.is_postgresql:
+        from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+
+        jobstores = {
+            "default": SQLAlchemyJobStore(engine=engine, tablename="apscheduler_jobs"),
+        }
+    else:
+        jobstores = {"default": MemoryJobStore()}
+
     executors = {"default": ThreadPoolExecutor(max_workers=4)}
     job_defaults = {
-        "coalesce": True,          # Merge missed runs into one
-        "max_instances": 1,        # Prevent overlapping runs
-        "misfire_grace_time": 300,  # 5 min grace for missed jobs
+        "coalesce": True,
+        "max_instances": 1,
+        "misfire_grace_time": 300,
     }
     return BackgroundScheduler(
         jobstores=jobstores,
@@ -49,79 +50,144 @@ def _create_scheduler() -> BackgroundScheduler:
     )
 
 
-# ─── Lifecycle ───────────────────────────────────────────────────────────────
+def _acquire_scheduler_lock() -> bool:
+    """Elect a single scheduler leader in multi-worker PostgreSQL deployments."""
+    global _scheduler_lock_conn
 
-def start_scheduler() -> None:
-    """Start the background scheduler. Call once from app lifespan."""
-    global _scheduler
-    if _scheduler is not None and _scheduler.running:
-        logger.warning("Scheduler is already running.")
+    settings = get_settings()
+    if not settings.is_deployed_env or not settings.is_postgresql:
+        return True
+
+    if _scheduler_lock_conn is not None:
+        return True
+
+    conn = None
+    try:
+        conn = engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT pg_try_advisory_lock(%s)", (_SCHEDULER_LOCK_KEY,))
+        row = cursor.fetchone()
+        cursor.close()
+        lock_acquired = bool(row and row[0])
+        if not lock_acquired:
+            conn.close()
+            logger.info("Scheduler lock is held by another process; skipping local scheduler startup")
+            return False
+
+        _scheduler_lock_conn = conn
+        logger.info("Acquired PostgreSQL advisory lock for scheduler leadership")
+        return True
+    except Exception:
+        logger.exception("Failed to acquire PostgreSQL advisory lock for scheduler startup")
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                logger.debug("Failed to close scheduler advisory-lock connection", exc_info=True)
+        return False
+
+
+def _release_scheduler_lock() -> None:
+    """Release the leader lock when this process stops owning the scheduler."""
+    global _scheduler_lock_conn
+
+    if _scheduler_lock_conn is None:
         return
 
-    _scheduler = _create_scheduler()
+    try:
+        cursor = _scheduler_lock_conn.cursor()
+        cursor.execute("SELECT pg_advisory_unlock(%s)", (_SCHEDULER_LOCK_KEY,))
+        cursor.close()
+    except Exception:
+        logger.warning("Failed to release PostgreSQL advisory lock for scheduler", exc_info=True)
+    finally:
+        try:
+            _scheduler_lock_conn.close()
+        except Exception:
+            logger.debug("Failed to close scheduler advisory-lock connection", exc_info=True)
+        _scheduler_lock_conn = None
 
-    # Register periodic jobs
-    _scheduler.add_job(
+
+def _register_jobs(scheduler: BackgroundScheduler) -> None:
+    """Register periodic jobs in an idempotent way."""
+    scheduler.add_job(
         _monitor_due_syncs,
         "interval",
         minutes=10,
         id="monitor_due_syncs",
         name="Monitor connections due for sync",
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+        replace_existing=True,
     )
-    _scheduler.add_job(
+    scheduler.add_job(
         _run_price_update,
         "interval",
         minutes=15,
         id="price_update",
         name="Update asset prices",
+        replace_existing=True,
     )
 
-    _scheduler.start()
-    logger.info("✅ Background scheduler started with %d jobs", len(_scheduler.get_jobs()))
+
+def start_scheduler() -> None:
+    """Start the background scheduler from the app lifespan."""
+    global _scheduler
+
+    with _scheduler_state_lock:
+        if _scheduler is not None and _scheduler.running:
+            logger.info("Scheduler is already running in this process")
+            return
+
+        if not _acquire_scheduler_lock():
+            return
+
+        scheduler = _create_scheduler()
+        try:
+            _register_jobs(scheduler)
+            scheduler.start()
+        except Exception:
+            logger.exception("Failed to start background scheduler")
+            try:
+                scheduler.shutdown(wait=False)
+            except Exception:
+                logger.debug("Scheduler shutdown after failed startup also failed", exc_info=True)
+            _release_scheduler_lock()
+            raise
+
+        _scheduler = scheduler
+        logger.info("Background scheduler started with %d jobs", len(_scheduler.get_jobs()))
 
 
 def stop_scheduler() -> None:
-    """Gracefully stop the scheduler. Call from app shutdown."""
+    """Gracefully stop the scheduler and release leadership if held."""
     global _scheduler
-    if _scheduler is not None and _scheduler.running:
-        _scheduler.shutdown(wait=False)
-        logger.info("🛑 Background scheduler stopped.")
-    _scheduler = None
 
+    with _scheduler_state_lock:
+        if _scheduler is not None and _scheduler.running:
+            _scheduler.shutdown(wait=False)
+            logger.info("Background scheduler stopped")
+        _scheduler = None
+        _release_scheduler_lock()
 
-# ─── Public API (imported by routers) ────────────────────────────────────────
 
 def get_sync_status() -> dict[str, Any]:
-    """
-    GET /br/sync/status — returns scheduler state + job list.
-    Used by SyncStatusResponse schema.
-    """
+    """Return scheduler state and current jobs."""
     if _scheduler is None or not _scheduler.running:
-        return {
-            "scheduler_running": False,
-            "jobs": [],
-        }
+        return {"scheduler_running": False, "jobs": []}
 
-    jobs = []
-    for job in _scheduler.get_jobs():
-        jobs.append({
+    jobs = [
+        {
             "id": job.id,
             "name": job.name or job.id,
             "next_run_time": str(job.next_run_time) if job.next_run_time else None,
-        })
-
-    return {
-        "scheduler_running": True,
-        "jobs": jobs,
-    }
+        }
+        for job in _scheduler.get_jobs()
+    ]
+    return {"scheduler_running": True, "jobs": jobs}
 
 
 def sync_all_wallets() -> dict[str, Any]:
-    """
-    POST /br/sync/wallets — manually trigger sync for ALL wallets.
-    Returns summary of results.
-    """
+    """Manually trigger sync for all auto-sync-enabled wallets."""
     db = SessionLocal()
     try:
         wallets = db.query(WalletConnection).filter(
@@ -137,13 +203,13 @@ def sync_all_wallets() -> dict[str, Any]:
             try:
                 result = SyncService.sync_wallet(wallet.id)
                 results.append({"wallet_id": wallet.id, **result})
-            except Exception as e:
-                logger.error(f"Wallet sync error (id={wallet.id}): {e}")
-                results.append({"wallet_id": wallet.id, "status": "error", "message": str(e)})
+            except Exception as exc:
+                logger.error("Wallet sync error (id=%s): %s", wallet.id, exc)
+                results.append({"wallet_id": wallet.id, "status": "error", "message": str(exc)})
 
         return {
             "status": "ok",
-            "synced": sum(1 for r in results if r.get("status") == "success"),
+            "synced": sum(1 for result in results if result.get("status") == "success"),
             "total": len(results),
             "results": results,
         }
@@ -152,9 +218,7 @@ def sync_all_wallets() -> dict[str, Any]:
 
 
 def sync_all_exchanges() -> dict[str, Any]:
-    """
-    POST /br/sync/exchanges — manually trigger sync for ALL exchange connections.
-    """
+    """Manually trigger sync for all auto-sync-enabled exchanges."""
     db = SessionLocal()
     try:
         exchanges = db.query(ExchangeConnection).filter(
@@ -170,13 +234,13 @@ def sync_all_exchanges() -> dict[str, Any]:
             try:
                 result = SyncService.sync_exchange(exchange.id)
                 results.append({"exchange_id": exchange.id, **result})
-            except Exception as e:
-                logger.error(f"Exchange sync error (id={exchange.id}): {e}")
-                results.append({"exchange_id": exchange.id, "status": "error", "message": str(e)})
+            except Exception as exc:
+                logger.error("Exchange sync error (id=%s): %s", exchange.id, exc)
+                results.append({"exchange_id": exchange.id, "status": "error", "message": str(exc)})
 
         return {
             "status": "ok",
-            "synced": sum(1 for r in results if r.get("status") == "success"),
+            "synced": sum(1 for result in results if result.get("status") == "success"),
             "total": len(results),
             "results": results,
         }
@@ -185,36 +249,27 @@ def sync_all_exchanges() -> dict[str, Any]:
 
 
 def update_prices() -> dict[str, Any]:
-    """
-    POST /br/sync/prices — refresh latest asset prices.
-    """
+    """Refresh latest asset prices."""
     try:
         _run_price_update()
         return {"status": "ok", "message": "Price update completed"}
-    except Exception as e:
-        logger.error(f"Price update error: {e}")
-        return {"status": "error", "message": str(e)}
+    except Exception as exc:
+        logger.error("Price update error: %s", exc)
+        return {"status": "error", "message": str(exc)}
 
 
 def manual_sync_wallet(wallet_id: int) -> dict[str, Any]:
-    """
-    POST /br/wallet/{id}/sync — manually sync a single wallet.
-    """
+    """Manually sync a single wallet."""
     try:
         return SyncService.sync_wallet(wallet_id)
-    except Exception as e:
-        logger.error(f"Manual wallet sync error (id={wallet_id}): {e}")
-        return {"status": "error", "message": str(e)}
+    except Exception as exc:
+        logger.error("Manual wallet sync error (id=%s): %s", wallet_id, exc)
+        return {"status": "error", "message": str(exc)}
 
 
 def trigger_recalculation(user_id: int) -> None:
-    """
-    Called after bulk reconciliation resolve — triggers
-    background recalculation of affected analysis runs.
-    """
-    logger.info(f"Recalculation triggered for user {user_id}")
-    # In production, this would enqueue a recalculation job.
-    # For now, recalculation happens synchronously on next analysis view.
+    """Trigger a best-effort recalculation job for a user."""
+    logger.info("Recalculation triggered for user %s", user_id)
     if _scheduler is not None and _scheduler.running:
         _scheduler.add_job(
             _recalculate_user,
@@ -225,48 +280,41 @@ def trigger_recalculation(user_id: int) -> None:
         )
 
 
-# ─── Internal Background Tasks ──────────────────────────────────────────────
-
 def _monitor_due_syncs() -> None:
-    """Periodically scan for connections that are due for sync and dispatch them."""
+    """Scan for wallet and exchange connections that are due for sync."""
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
 
-        # Find wallets due for sync
         due_wallets = db.query(WalletConnection).filter(
             WalletConnection.auto_sync_enabled.is_(True),
             WalletConnection.sync_status != "syncing",
             WalletConnection.next_sync_at <= now,
         ).all()
-
         for wallet in due_wallets:
-            logger.info(f"Auto-syncing wallet {wallet.id} (due at {wallet.next_sync_at})")
+            logger.info("Auto-syncing wallet %s (due at %s)", wallet.id, wallet.next_sync_at)
             try:
                 SyncService.sync_wallet(wallet.id)
-            except Exception as e:
-                logger.error(f"Auto-sync wallet error (id={wallet.id}): {e}")
+            except Exception as exc:
+                logger.error("Auto-sync wallet error (id=%s): %s", wallet.id, exc)
 
-        # Find exchanges due for sync
         due_exchanges = db.query(ExchangeConnection).filter(
             ExchangeConnection.auto_sync_enabled.is_(True),
             ExchangeConnection.sync_status != "syncing",
             ExchangeConnection.next_sync_at <= now,
         ).all()
-
         for exchange in due_exchanges:
-            logger.info(f"Auto-syncing exchange {exchange.id} (due at {exchange.next_sync_at})")
+            logger.info("Auto-syncing exchange %s (due at %s)", exchange.id, exchange.next_sync_at)
             try:
                 SyncService.sync_exchange(exchange.id)
-            except Exception as e:
-                logger.error(f"Auto-sync exchange error (id={exchange.id}): {e}")
+            except Exception as exc:
+                logger.error("Auto-sync exchange error (id=%s): %s", exchange.id, exc)
 
-        total = len(due_wallets) + len(due_exchanges)
-        if total > 0:
-            logger.info(f"Monitor scan complete: dispatched {total} sync jobs")
-
-    except Exception as e:
-        logger.error(f"Monitor scan error: {e}")
+        dispatched = len(due_wallets) + len(due_exchanges)
+        if dispatched:
+            logger.info("Monitor scan complete: dispatched %d sync jobs", dispatched)
+    except Exception as exc:
+        logger.error("Monitor scan error: %s", exc)
     finally:
         db.close()
 
@@ -275,18 +323,16 @@ def _run_price_update() -> None:
     """Fetch latest prices for tracked assets."""
     try:
         from app.accounting.pricing import PriceService
-        price_svc = PriceService()
-        price_svc.update_cache()
+
+        price_service = PriceService()
+        price_service.update_cache()
         logger.info("Price cache updated successfully")
     except ImportError:
-        logger.warning("PriceService not available — skipping price update")
-    except Exception as e:
-        logger.error(f"Price update failed: {e}")
+        logger.warning("PriceService not available; skipping price update")
+    except Exception as exc:
+        logger.error("Price update failed: %s", exc)
 
 
 def _recalculate_user(user_id: int) -> None:
-    """Recalculate analysis runs for a user after reconciliation changes."""
-    logger.info(f"Running recalculation for user {user_id}")
-    # This is a placeholder — actual recalculation depends on
-    # how analysis runs store and refresh their data.
-    # The reconciliation service already updates the DB directly.
+    """Placeholder recalculation hook used after reconciliation changes."""
+    logger.info("Running recalculation for user %s", user_id)

@@ -2,31 +2,34 @@
 Tax Jurisdictions API Endpoints
 REST API for tax jurisdictions, calculations, and forms
 """
+import logging
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 from datetime import datetime
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, Request
 
+from app.core.api_errors import server_error
 from app.core.db import get_db
-from app.models.jurisdiction import Jurisdiction, TaxRule, TaxFormTemplate
+from app.models.jurisdiction import Jurisdiction
 from app.models.tax_profile import UserTaxProfile
 from app.auth import get_current_user
 from app.models.user import User
 
 # New 12-country architecture
 from app.countries.registries.country_registry import CountryRegistry
+from app.services import billing_service
+from app.services.jurisdiction_geo_service import apply_tax_center_geo, set_user_jurisdiction
 
+from pydantic import BaseModel, Field
 
-# Pydantic schemas for request/response
-from pydantic import BaseModel
-from datetime import datetime as dt
+logger = logging.getLogger(__name__)
 
 
 class CapitalGainInput(BaseModel):
     """Input for capital gain calculation"""
-    buy_date: dt
-    sell_date: dt
+    buy_date: datetime
+    sell_date: datetime
     buy_price: Decimal
     sell_price: Decimal
     quantity: Decimal
@@ -73,6 +76,21 @@ class TaxProfileCreateRequest(BaseModel):
     tax_advisor_email: Optional[str] = None
 
 
+class JurisdictionAutoDetectResponse(BaseModel):
+    jurisdiction_code: str
+    jurisdiction_name: str
+    base_currency: str
+    applied_now: bool
+    geo_jurisdiction_applied: bool
+    country_locked: bool
+    source: str | None = None
+    cf_country: str | None = None
+
+
+class JurisdictionSetRequest(BaseModel):
+    jurisdiction_code: str = Field(..., min_length=2, max_length=2)
+
+
 class TaxProfileResponse(BaseModel):
     """Tax profile response"""
     id: str
@@ -82,7 +100,7 @@ class TaxProfileResponse(BaseModel):
     preferred_export_formats: str
     fiscal_year_start_month: int
     fiscal_year_end_month: int
-    created_at: dt
+    created_at: datetime
 
 
 # Create router
@@ -115,7 +133,7 @@ def get_jurisdictions(db: Session = Depends(get_db)):
         
         return jurisdictions
 
-    except Exception as e:
+    except Exception:
         return []
 
 
@@ -212,8 +230,55 @@ async def calculate_tax(
                 detail="Invalid request - provide either 'gains' for capital gains or 'amount' for income/vat"
             )
             
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
+        raise server_error(logger, e) from e
+
+
+# ==================== GEO JURISDICTION ====================
+
+@router.post("/jurisdiction/auto-detect", response_model=JurisdictionAutoDetectResponse)
+def auto_detect_jurisdiction(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JurisdictionAutoDetectResponse:
+    """
+    Apply Cloudflare CF-IPCountry on first Tax Center visit.
+
+    Requires Cloudflare Network → IP Geolocation enabled for declairo.com.
+    """
+    try:
+        payload = apply_tax_center_geo(db, current_user, request)
+        return JurisdictionAutoDetectResponse(**payload)
+    except Exception as e:
+        raise server_error(logger, e) from e
+
+
+@router.put("/jurisdiction", response_model=JurisdictionAutoDetectResponse)
+def set_jurisdiction(
+    body: JurisdictionSetRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JurisdictionAutoDetectResponse:
+    """Persist explicit jurisdiction (locks against geo override)."""
+    try:
+        payload = set_user_jurisdiction(db, current_user, body.jurisdiction_code)
+        return JurisdictionAutoDetectResponse(
+            jurisdiction_code=payload["jurisdiction_code"],
+            jurisdiction_name=payload["jurisdiction_name"],
+            base_currency=payload["base_currency"],
+            applied_now=True,
+            geo_jurisdiction_applied=True,
+            country_locked=payload["country_locked"],
+            source=payload["source"],
+            cf_country=None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise server_error(logger, e) from e
 
 
 # ==================== TAX PROFILE ENDPOINTS ====================
@@ -416,6 +481,7 @@ def export_tax_report(
         
     # Generate content
     if format_type == "pdf":
+        billing_service.check_limit(db, current_user.id, "pdf")
         return ReportService.generate_pdf_report(current_user, code, year, data)
     elif format_type == "xml":
         return ReportService.generate_xml_report(current_user, code, year, data)

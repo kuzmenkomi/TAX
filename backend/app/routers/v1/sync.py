@@ -7,14 +7,13 @@ from app.auth import get_current_user
 from app.core.db import get_db
 from app.integrations.exchange_ccxt import fetch_exchange_spot_trades_dataframe
 from app.integrations.explorer_fetch import fetch_evm_transfers, fetch_solana_transfers
-from app.models import ImportJob, SyncJob, User, WalletConnection
+from app.models import ImportJob, SyncJob, User
 from app.schemas.sync import (
     BrBinanceSyncIn,
     BrSyncIn,
     BrWalletOnchainIn,
     SyncEnqueueResponse,
     SyncExchangeIn,
-    SyncJobInfo,
     SyncStatusResponse,
     SyncWalletIn,
 )

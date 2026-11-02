@@ -117,7 +117,7 @@ class TLHScorer:
         
         # 1️⃣ TAX SAVINGS COMPONENT (0-100)
         # Higher loss = higher score
-        tax_benefit = loss_amount * (tax_rate / 100)
+        tax_benefit = loss_amount * Decimal(str(tax_rate / 100))
         
         if tax_benefit > cls.MIN_TAX_BENEFIT_FOR_POINTS:
             # Scale logarithmically to avoid extreme outliers

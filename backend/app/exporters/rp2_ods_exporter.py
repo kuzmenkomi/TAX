@@ -63,6 +63,11 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
             return "INTEREST"
         return "BUY"
 
+    def _clean_uid(val, default_val: str) -> str:
+        if val is None or pd.isna(val) or val == "":
+            return default_val
+        return str(val)
+
     # RP2 requires a non-empty IN table for each configured asset:
     in_assets_set: set[str] = set()
     if "asset" in df.columns:
@@ -120,7 +125,7 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
                     float(fiat_in_no_fee),
                     float(fiat_in_with_fee),
                     None,
-                    r.get("external_id", "") or f"row_{idx}",
+                    _clean_uid(r.get("external_id"), f"row_{idx}"),
                     "",
                 ]
             )
@@ -131,7 +136,7 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
                 if amount_in <= 0:
                     continue
                 fiat_in_no_fee = _fiat_value(amount_in, 0.0, r.get("total_value"))
-                uid = (r.get("external_id", "") or f"row_{idx}") + "_in"
+                uid = _clean_uid(r.get("external_id"), f"row_{idx}") + "_in"
                 rows.append(
                     [
                         _iso_utc(r["timestamp"]),
@@ -190,7 +195,7 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
                     float(crypto_out_with_fee),
                     float(fiat_out_no_fee),
                     None,
-                    r.get("external_id", "") or f"row_{idx}",
+                    _clean_uid(r.get("external_id"), f"row_{idx}"),
                     "",
                 ]
             )
@@ -204,7 +209,7 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
                 crypto_fee = float(r.get("fee", 0.0) or 0.0)
                 crypto_out_with_fee = amount_out + crypto_fee
                 fiat_out_no_fee = _fiat_value(amount_out, spot_price, r.get("total_value"))
-                uid = (r.get("external_id", "") or f"row_{idx}") + "_out"
+                uid = _clean_uid(r.get("external_id"), f"row_{idx}") + "_out"
                 rows.append(
                     [
                         _iso_utc(r["timestamp"]),
@@ -258,7 +263,7 @@ def export_to_rp2_ods(df: pd.DataFrame, matches, output_dir: str = "output") -> 
                     float(spot_price),
                     crypto_sent,
                     crypto_received,
-                    r.get("external_id", "") or f"row_{idx}",
+                    _clean_uid(r.get("external_id"), f"row_{idx}"),
                     "",
                 ]
             )

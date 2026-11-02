@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiUrl } from '../api/v1';
 
 interface TaskProgress {
   task_id: string;
@@ -58,11 +59,10 @@ export function useTaskProgress(): UseTaskProgressReturn {
 
   const startPolling = useCallback((taskId: string) => {
     // Fallback polling every 2 seconds
-    const token = localStorage.getItem('token');
     pollingRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/v1/task/${taskId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(getApiUrl(`/task/${taskId}`), {
+          credentials: 'include',
         });
         if (res.ok) {
           const data: TaskProgress = await res.json();
@@ -87,11 +87,9 @@ export function useTaskProgress(): UseTaskProgressReturn {
     setError(null);
     taskIdRef.current = taskId;
 
-    const token = localStorage.getItem('token');
-
-    // Try SSE first
+    // Try SSE first (cookies sent for same-site / configured API origin)
     try {
-      const es = new EventSource(`/api/v1/sse/task/${taskId}?token=${token}`);
+      const es = new EventSource(getApiUrl(`/sse/task/${taskId}`));
       eventSourceRef.current = es;
 
       es.onmessage = (event) => {

@@ -1,68 +1,65 @@
 """
-Tests for Banking API endpoints
-Unit and integration tests for Open Banking integration
+Tests for Banking API endpoints.
+
+Uses synchronous TestClient + conftest dependency overrides (same pattern as
+test_tlh_endpoints). Async httpx + wrong get_db overrides caused 401/404 on all routes.
 """
 
-import pytest
-from decimal import Decimal
-from datetime import datetime, timedelta
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from __future__ import annotations
 
-from app.api.server import create_app
-from app.core.db import Base, get_db
+import uuid
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.auth import get_current_user
+from app.main import app
+from sqlalchemy import delete, select
+
 from app.models import (
     BankAccount,
     BankTransaction,
-    TransactionMatch,
-    CryptoWithdrawal,
     BankType,
+    CryptoWithdrawal,
+    TransactionMatch,
 )
 
 
-# ============================================================================
-# FIXTURES
-# ============================================================================
+def _session_user_id() -> str:
+    override_fn = app.dependency_overrides.get(get_current_user)
+    assert override_fn is not None
+    user = override_fn()
+    return str(user.id)
 
-@pytest.fixture
-async def test_db():
-    """Create test database"""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    TestingSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
-    async def override_get_db():
-        async with TestingSessionLocal() as session:
-            yield session
-    
-    app = create_app()
-    app.dependency_overrides[get_db] = override_get_db
-    
-    async with TestingSessionLocal() as session:
-        yield session
-    
-    await engine.dispose()
+
+def _purge_banking_for_session_user(db) -> None:
+    """Remove banking rows for the test user (API commits bypass nested txn rollback)."""
+    uid = _session_user_id()
+    acc_ids = list(db.scalars(select(BankAccount.id).where(BankAccount.user_id == uid)).all())
+    if acc_ids:
+        tx_ids = list(db.scalars(select(BankTransaction.id).where(BankTransaction.account_id.in_(acc_ids))).all())
+        if tx_ids:
+            db.execute(delete(TransactionMatch).where(TransactionMatch.bank_deposit_id.in_(tx_ids)))
+        db.execute(delete(BankTransaction).where(BankTransaction.account_id.in_(acc_ids)))
+    db.execute(delete(BankAccount).where(BankAccount.user_id == uid))
+    db.execute(delete(CryptoWithdrawal).where(CryptoWithdrawal.user_id == uid))
+    db.commit()
 
 
 @pytest.fixture
-async def client(test_db):
-    """Create test client"""
-    app = create_app()
-    app.dependency_overrides[get_db] = lambda: test_db
-    
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+def client():
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture
-async def sample_bank_account(test_db):
-    """Create sample bank account"""
+def sample_bank_account(db):
+    user_id = _session_user_id()
     account = BankAccount(
-        id="bank_acc_1",
-        user_id="test_user",
+        id=f"bank_acc_{uuid.uuid4().hex[:8]}",
+        user_id=user_id,
         bank_type=BankType.NUBANK.value,
         account_number="12345678",
         account_name="My Nubank Account",
@@ -71,17 +68,17 @@ async def sample_bank_account(test_db):
         sync_status="synced",
         connected_at=datetime.utcnow(),
     )
-    test_db.add(account)
-    await test_db.commit()
-    await test_db.refresh(account)
+    db.add(account)
+    db.commit()
+    db.refresh(account)
     return account
 
 
 @pytest.fixture
-async def sample_bank_transaction(test_db, sample_bank_account):
-    """Create sample bank transaction"""
+def sample_bank_transaction(db, sample_bank_account):
+    tid = f"bank_txn_{uuid.uuid4().hex[:8]}"
     txn = BankTransaction(
-        id="bank_txn_1",
+        id=tid,
         account_id=sample_bank_account.id,
         date=datetime.utcnow(),
         type="deposit",
@@ -91,18 +88,19 @@ async def sample_bank_transaction(test_db, sample_bank_account):
         counterparty="Binance",
         balance_after=Decimal("51000"),
     )
-    test_db.add(txn)
-    await test_db.commit()
-    await test_db.refresh(txn)
+    db.add(txn)
+    db.commit()
+    db.refresh(txn)
     return txn
 
 
 @pytest.fixture
-async def sample_crypto_withdrawal(test_db):
-    """Create sample crypto withdrawal"""
+def sample_crypto_withdrawal(db):
+    user_id = _session_user_id()
+    wid = f"crypto_wd_{uuid.uuid4().hex[:8]}"
     withdrawal = CryptoWithdrawal(
-        id="crypto_wd_1",
-        user_id="test_user",
+        id=wid,
+        user_id=user_id,
         exchange="binance",
         asset="BTC",
         amount=Decimal("0.05"),
@@ -112,9 +110,9 @@ async def sample_crypto_withdrawal(test_db):
         status="completed",
         date_time=datetime.utcnow(),
     )
-    test_db.add(withdrawal)
-    await test_db.commit()
-    await test_db.refresh(withdrawal)
+    db.add(withdrawal)
+    db.commit()
+    db.refresh(withdrawal)
     return withdrawal
 
 
@@ -122,9 +120,8 @@ async def sample_crypto_withdrawal(test_db):
 # BANK ACCOUNT TESTS
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_connect_bank_account(client, test_db):
-    """Test connecting new bank account"""
+
+def test_connect_bank_account(client):
     payload = {
         "bank_type": "nubank",
         "account_number": "87654321",
@@ -133,71 +130,61 @@ async def test_connect_bank_account(client, test_db):
         "api_key": "test_key",
         "api_secret": "test_secret",
     }
-    response = await client.post("/api/v1/banking/accounts/connect", json=payload)
+    response = client.post("/api/v1/banking/accounts/connect", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["bank_type"] == "nubank"
     assert data["account_name"] == "Test Account"
 
 
-@pytest.mark.asyncio
-async def test_connect_invalid_bank(client, test_db):
-    """Test connecting with invalid bank type"""
+def test_connect_invalid_bank(client):
     payload = {
         "bank_type": "invalid_bank",
         "account_number": "87654321",
         "account_name": "Test",
         "currency": "BRL",
     }
-    response = await client.post("/api/v1/banking/accounts/connect", json=payload)
+    response = client.post("/api/v1/banking/accounts/connect", json=payload)
     assert response.status_code == 400
 
 
-@pytest.mark.asyncio
-async def test_list_bank_accounts_empty(client, test_db):
-    """Test listing accounts when none connected"""
-    response = await client.get("/api/v1/banking/accounts")
+def test_list_bank_accounts_empty(client, db):
+    _purge_banking_for_session_user(db)
+    response = client.get("/api/v1/banking/accounts")
     assert response.status_code == 200
     assert response.json() == []
 
 
-@pytest.mark.asyncio
-async def test_list_bank_accounts(client, test_db, sample_bank_account):
-    """Test listing connected bank accounts"""
-    response = await client.get("/api/v1/banking/accounts")
+def test_list_bank_accounts(client, sample_bank_account):
+    response = client.get("/api/v1/banking/accounts")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["bank_type"] == "nubank"
+    mine = [x for x in data if x["id"] == sample_bank_account.id]
+    assert len(mine) == 1
+    assert mine[0]["bank_type"] == "nubank"
 
 
-@pytest.mark.asyncio
-async def test_get_bank_account(client, test_db, sample_bank_account):
-    """Test getting specific bank account"""
-    response = await client.get(f"/api/v1/banking/accounts/{sample_bank_account.id}")
+def test_get_bank_account(client, sample_bank_account):
+    response = client.get(f"/api/v1/banking/accounts/{sample_bank_account.id}")
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == sample_bank_account.id
     assert data["account_number"] == "12345678"
 
 
-@pytest.mark.asyncio
-async def test_get_nonexistent_account(client, test_db):
-    """Test getting non-existent account"""
-    response = await client.get("/api/v1/banking/accounts/nonexistent")
+def test_get_nonexistent_account(client):
+    response = client.get("/api/v1/banking/accounts/nonexistent")
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_sync_bank_transactions(client, test_db, sample_bank_account):
-    """Test syncing bank transactions"""
+def test_sync_bank_transactions(client, sample_bank_account):
     payload = {
         "days_back": 30,
         "force_full_sync": False,
     }
-    response = await client.post(
+    response = client.post(
         f"/api/v1/banking/accounts/{sample_bank_account.id}/sync",
-        json=payload
+        json=payload,
     )
     assert response.status_code == 200
     data = response.json()
@@ -205,16 +192,13 @@ async def test_sync_bank_transactions(client, test_db, sample_bank_account):
     assert data["status"] in ["success", "no_new_transactions"]
 
 
-@pytest.mark.asyncio
-async def test_disconnect_account(client, test_db, sample_bank_account):
-    """Test disconnecting bank account"""
-    response = await client.delete(f"/api/v1/banking/accounts/{sample_bank_account.id}")
+def test_disconnect_account(client, sample_bank_account):
+    response = client.delete(f"/api/v1/banking/accounts/{sample_bank_account.id}")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "disconnected"
-    
-    # Verify deletion
-    response = await client.get(f"/api/v1/banking/accounts/{sample_bank_account.id}")
+
+    response = client.get(f"/api/v1/banking/accounts/{sample_bank_account.id}")
     assert response.status_code == 404
 
 
@@ -222,38 +206,32 @@ async def test_disconnect_account(client, test_db, sample_bank_account):
 # BANK TRANSACTION TESTS
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_list_transactions_empty(client, test_db):
-    """Test listing transactions when none exist"""
-    response = await client.get("/api/v1/banking/transactions")
+
+def test_list_transactions_empty(client, db):
+    _purge_banking_for_session_user(db)
+    response = client.get("/api/v1/banking/transactions")
     assert response.status_code == 200
     assert response.json() == []
 
 
-@pytest.mark.asyncio
-async def test_list_transactions(client, test_db, sample_bank_transaction):
-    """Test listing bank transactions"""
-    response = await client.get("/api/v1/banking/transactions")
+def test_list_transactions(client, sample_bank_transaction):
+    response = client.get("/api/v1/banking/transactions")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["type"] == "deposit"
 
 
-@pytest.mark.asyncio
-async def test_list_transactions_filter_type(client, test_db, sample_bank_transaction):
-    """Test filtering transactions by type"""
-    response = await client.get("/api/v1/banking/transactions?type=deposit")
+def test_list_transactions_filter_type(client, sample_bank_transaction):
+    response = client.get("/api/v1/banking/transactions?type=deposit")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["type"] == "deposit"
 
 
-@pytest.mark.asyncio
-async def test_list_transactions_filter_amount(client, test_db, sample_bank_transaction):
-    """Test filtering transactions by amount"""
-    response = await client.get("/api/v1/banking/transactions?min_amount=500&max_amount=1500")
+def test_list_transactions_filter_amount(client, sample_bank_transaction):
+    response = client.get("/api/v1/banking/transactions?min_amount=500&max_amount=1500")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -263,11 +241,10 @@ async def test_list_transactions_filter_amount(client, test_db, sample_bank_tran
 # TRANSACTION MATCHING TESTS
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_create_transaction_match(client, test_db, sample_bank_transaction):
-    """Test creating transaction match"""
+
+def test_create_transaction_match(client, sample_bank_transaction, sample_crypto_withdrawal):
     payload = {
-        "crypto_withdrawal_id": "crypto_wd_1",
+        "crypto_withdrawal_id": sample_crypto_withdrawal.id,
         "bank_deposit_id": sample_bank_transaction.id,
         "crypto_amount": "0.05",
         "crypto_currency": "BTC",
@@ -276,7 +253,7 @@ async def test_create_transaction_match(client, test_db, sample_bank_transaction
         "exchange_rate": "20000",
         "fees_paid": "10",
     }
-    response = await client.post("/api/v1/banking/match", json=payload)
+    response = client.post("/api/v1/banking/match", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["crypto_currency"] == "BTC"
@@ -284,35 +261,28 @@ async def test_create_transaction_match(client, test_db, sample_bank_transaction
     assert data["confidence"] == 1.0
 
 
-@pytest.mark.asyncio
-async def test_auto_match_transactions(client, test_db, sample_bank_transaction, sample_crypto_withdrawal):
-    """Test automatic transaction matching"""
+def test_auto_match_transactions(client, sample_bank_transaction, sample_crypto_withdrawal):
     payload = {
         "tolerance_percent": 2.0,
         "time_window_hours": 24,
     }
-    response = await client.post("/api/v1/banking/match-auto", json=payload)
+    response = client.post("/api/v1/banking/match-auto", json=payload)
     assert response.status_code == 200
     data = response.json()
-    # Should find matches based on algorithms
     assert "matches_found" in data
 
 
-@pytest.mark.asyncio
-async def test_list_matches_empty(client, test_db):
-    """Test listing matches when none exist"""
-    response = await client.get("/api/v1/banking/matches")
+def test_list_matches_empty(client, db):
+    _purge_banking_for_session_user(db)
+    response = client.get("/api/v1/banking/matches")
     assert response.status_code == 200
     assert response.json() == []
 
 
-@pytest.mark.asyncio
-async def test_list_matches_with_data(client, test_db, sample_bank_transaction):
-    """Test listing transaction matches"""
-    # Create a match
+def test_list_matches_with_data(client, db, sample_bank_transaction, sample_crypto_withdrawal):
     match = TransactionMatch(
-        id="match_1",
-        crypto_withdrawal_id="crypto_wd_1",
+        id=f"match_{uuid.uuid4().hex[:8]}",
+        crypto_withdrawal_id=sample_crypto_withdrawal.id,
         bank_deposit_id=sample_bank_transaction.id,
         crypto_amount=Decimal("0.05"),
         crypto_currency="BTC",
@@ -325,10 +295,10 @@ async def test_list_matches_with_data(client, test_db, sample_bank_transaction):
         time_delta_hours=2.0,
         confidence=0.95,
     )
-    test_db.add(match)
-    await test_db.commit()
-    
-    response = await client.get("/api/v1/banking/matches")
+    db.add(match)
+    db.commit()
+
+    response = client.get("/api/v1/banking/matches")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -339,20 +309,18 @@ async def test_list_matches_with_data(client, test_db, sample_bank_transaction):
 # CYCLE DASHBOARD TESTS
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_get_cycle_dashboard_empty(client, test_db):
-    """Test cycle dashboard with no data"""
-    response = await client.get("/api/v1/banking/cycle-dashboard")
+
+def test_get_cycle_dashboard_empty(client, db):
+    _purge_banking_for_session_user(db)
+    response = client.get("/api/v1/banking/cycle-dashboard")
     assert response.status_code == 200
     data = response.json()
-    assert data["user_id"] == "test_user"
+    assert data["user_id"] == _session_user_id()
     assert data["matched_cycles"] == 0
 
 
-@pytest.mark.asyncio
-async def test_get_cycle_dashboard_with_data(client, test_db, sample_bank_account):
-    """Test cycle dashboard with accounts"""
-    response = await client.get("/api/v1/banking/cycle-dashboard")
+def test_get_cycle_dashboard_with_data(client, sample_bank_account):
+    response = client.get("/api/v1/banking/cycle-dashboard")
     assert response.status_code == 200
     data = response.json()
     assert data["total_positions"] >= 1
@@ -362,20 +330,18 @@ async def test_get_cycle_dashboard_with_data(client, test_db, sample_bank_accoun
 # METRICS TESTS
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_get_banking_metrics_empty(client, test_db):
-    """Test banking metrics with no data"""
-    response = await client.get("/api/v1/banking/metrics")
+
+def test_get_banking_metrics_empty(client, db):
+    _purge_banking_for_session_user(db)
+    response = client.get("/api/v1/banking/metrics")
     assert response.status_code == 200
     data = response.json()
     assert data["connected_banks"] == 0
     assert data["total_transactions"] == 0
 
 
-@pytest.mark.asyncio
-async def test_get_banking_metrics_with_data(client, test_db, sample_bank_account, sample_bank_transaction):
-    """Test banking metrics with data"""
-    response = await client.get("/api/v1/banking/metrics")
+def test_get_banking_metrics_with_data(client, sample_bank_account, sample_bank_transaction):
+    response = client.get("/api/v1/banking/metrics")
     assert response.status_code == 200
     data = response.json()
     assert data["connected_banks"] >= 1
@@ -386,10 +352,9 @@ async def test_get_banking_metrics_with_data(client, test_db, sample_bank_accoun
 # HEALTH CHECK
 # ============================================================================
 
-@pytest.mark.asyncio
-async def test_banking_health_check(client):
-    """Test banking health check endpoint"""
-    response = await client.get("/api/v1/banking/health")
+
+def test_banking_health_check(client):
+    response = client.get("/api/v1/banking/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"

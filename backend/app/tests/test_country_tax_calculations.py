@@ -530,6 +530,17 @@ class TestArgentina(CountryTestBase):
         b = country.get_tax_rates()["income"][-1]
         assert float(b.rate) == pytest.approx(0.35)
 
+    def test_argentina_brackets_current_year(self, country):
+        """Warn if Argentina brackets look stale (ARS inflation requires annual update)."""
+        import datetime
+        brackets = country.get_tax_rates()["income"]
+        # The exempt threshold should be above ARS 3,000,000 for FY2026
+        exempt_threshold = float(brackets[0].max_amount)
+        assert exempt_threshold >= 3_000_000, (
+            f"Argentina exempt threshold {exempt_threshold:,.0f} ARS looks outdated for 2026. "
+            "Update brackets in countries/ar/config.py."
+        )
+
 
 class TestColombia(CountryTestBase):
     country_class = Colombia

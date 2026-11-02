@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
 from typing import Any
 import pandas as pd
 
@@ -161,7 +162,7 @@ def calculate_pnl(
                         "buy_tx_external_id": c["buy_external_id"],
                     })
             except ValueError as e:
-                print(f"⚠️ Ошибка FIFO для {asset} (индекс {tx_idx}): {e}")
+                logging.warning(f"FIFO error for {asset} (index {tx_idx}): {e}")
 
         # Случай Г: ОБМЕН (SWAP)
         elif tx_type in ["SWAP", "TRADE"]:
@@ -172,26 +173,29 @@ def calculate_pnl(
             p_out = price_service.get_historical_price_usd(a_out, timestamp)
             proceeds = (am_out * p_out) - fee_usd
             
-            cost_basis_out, consumed = _consume_lots(rules.cost_basis_method, inventory[a_out], am_out)
-            realized_pnl_by_asset[a_out] += (proceeds - cost_basis_out)
-            
-            # Audit matches for the sold part of the swap
-            for c in consumed:
-                lot_matches.append({
-                    "asset": a_out,
-                    "amount": c["amount"],
-                    "buy_price": c["unit_cost"],
-                    "sell_price": p_out,
-                    "cost_basis": c["cost_basis"],
-                    "proceeds": (c["amount"] / am_out) * proceeds if am_out > 0 else 0,
-                    "gain_loss": ((c["amount"] / am_out) * proceeds) - c["cost_basis"] if am_out > 0 else 0,
-                    "buy_timestamp": datetime.fromtimestamp(c["buy_timestamp"], tz=timezone.utc),
-                    "sell_timestamp": dt_ts,
-                    "sell_tx_id": tx_id,
-                    "sell_tx_external_id": external_id,
-                    "buy_tx_id": c["buy_tx_id"],
-                    "buy_tx_external_id": c["buy_external_id"],
-                })
+            try:
+                cost_basis_out, consumed = _consume_lots(rules.cost_basis_method, inventory[a_out], am_out)
+                realized_pnl_by_asset[a_out] += (proceeds - cost_basis_out)
+                
+                # Audit matches for the sold part of the swap
+                for c in consumed:
+                    lot_matches.append({
+                        "asset": a_out,
+                        "amount": c["amount"],
+                        "buy_price": c["unit_cost"],
+                        "sell_price": p_out,
+                        "cost_basis": c["cost_basis"],
+                        "proceeds": (c["amount"] / am_out) * proceeds if am_out > 0 else 0,
+                        "gain_loss": ((c["amount"] / am_out) * proceeds) - c["cost_basis"] if am_out > 0 else 0,
+                        "buy_timestamp": datetime.fromtimestamp(c["buy_timestamp"], tz=timezone.utc),
+                        "sell_timestamp": dt_ts,
+                        "sell_tx_id": tx_id,
+                        "sell_tx_external_id": external_id,
+                        "buy_tx_id": c["buy_tx_id"],
+                        "buy_tx_external_id": c["buy_external_id"],
+                    })
+            except ValueError as e:
+                logging.warning(f"SWAP error for {a_out} (index {tx_idx}): {e}")
             
             # Входящий актив получает стоимость на основе проданного
             unit_cost_in = proceeds / am_in if am_in > 0 else 0.0
@@ -273,7 +277,11 @@ def calculate_pnl(
                 total_market_value = 0.0
                 
                 for a_in, am_in in tokens_in.items():
-                    cb, _ = _consume_lots(rules.cost_basis_method, inventory[a_in], am_in)
+                    try:
+                        cb, _ = _consume_lots(rules.cost_basis_method, inventory[a_in], am_in)
+                    except ValueError as e:
+                        logging.warning(f"DEFI_LP_ADD error for {a_in} (index {tx_idx}): {e}")
+                        cb = am_in * price_service.get_historical_price_usd(a_in, timestamp)
                     total_cb += cb
                     total_market_value += (am_in * price_service.get_historical_price_usd(a_in, timestamp))
                 
@@ -344,7 +352,11 @@ def calculate_pnl(
                     ))
                 
                 for lp_asset, lp_amount in tokens_in.items():
-                    cb, consumed = _consume_lots(rules.cost_basis_method, inventory[lp_asset], lp_amount)
+                    try:
+                        cb, consumed = _consume_lots(rules.cost_basis_method, inventory[lp_asset], lp_amount)
+                    except ValueError as e:
+                        logging.warning(f"DEFI_LP_REMOVE error for {lp_asset} (index {tx_idx}): {e}")
+                        cb = 0.0
                     realized_pnl_by_asset[lp_asset] += (total_proceeds - cb)
                     taxable_events_count += 1
 

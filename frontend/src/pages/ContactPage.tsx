@@ -1,33 +1,57 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Mail, MessageSquare, Send, ChevronLeft, Globe } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Mail, MessageSquare, Send, ChevronLeft, Globe, Clock } from 'lucide-react';
 
 export function ContactPage() {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    // Simulate API call
-    setTimeout(() => setSubmitted(false), 5000);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/v1/support/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Something went wrong. Please try again.');
+      }
+
+      setSubmitted(true);
+      setFormData({ name: '', email: '', message: '' });
+    } catch (err: any) {
+      setError(err.message || 'Could not send your message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header className="py-6 px-6 md:px-12 border-b" style={{ background: 'var(--nav-bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: 'var(--text)' }}>
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: 'var(--text)' }}>
             <ChevronLeft size={20} />
-            <span className="font-bold text-sm">Back to Home</span>
-          </Link>
+            <span className="font-bold text-sm">Back</span>
+          </button>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-brand-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-green-500/20">
-              <span className="text-brand-dark font-black text-sm">L</span>
-            </div>
+            <img src="/logo.webp" alt="Declairo Logo" className="w-8 h-8 object-contain" />
             <span className="font-syne font-extrabold text-xl tracking-tight" style={{ color: 'var(--text)' }}>
-              Tax<span className="text-brand-green-500">Flow</span>
+              Declairo
             </span>
           </div>
         </div>
@@ -54,32 +78,40 @@ export function ContactPage() {
                 <Mail className="text-brand-green-500" size={24} />
               </div>
               <h3 className="text-xl font-bold mb-2 tracking-tight" style={{ color: 'var(--text)' }}>Support</h3>
-              <p className="text-sm font-medium mb-4" style={{ color: 'var(--text3)' }}>Email us for technical assistance.</p>
-              <a href="mailto:support@declairo.app" className="text-brand-green-500 font-bold hover:underline">support@declairo.app</a>
+              <p className="text-sm font-medium mb-2" style={{ color: 'var(--text3)' }}>Email us anytime for technical assistance.</p>
+              <a href="mailto:support@declairo.com" className="text-brand-green-500 font-bold hover:underline">support@declairo.com</a>
+              <div className="flex items-center gap-2 mt-3" style={{ color: 'var(--text3)' }}>
+                <Clock size={14} />
+                <span className="text-xs font-medium">Response within 24 hours</span>
+              </div>
             </div>
 
             <div className="p-8 rounded-[2.5rem] shadow-xl border" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-6" style={{ background: 'var(--bg2)' }}>
                 <Globe className="text-brand-green-500" size={24} />
               </div>
-              <h3 className="text-xl font-bold mb-2 tracking-tight" style={{ color: 'var(--text)' }}>Social Hub</h3>
-              <p className="text-sm font-medium mb-4" style={{ color: 'var(--text3)' }}>Join our community for updates.</p>
-              <div className="flex gap-4">
-                <a href="#" className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors" style={{ background: 'var(--bg2)', color: 'var(--text2)' }}>
-                  <Send size={18} />
+              <h3 className="text-xl font-bold mb-2 tracking-tight" style={{ color: 'var(--text)' }}>Community</h3>
+              <p className="text-sm font-medium mb-4" style={{ color: 'var(--text3)' }}>Join our community for updates and announcements.</p>
+              <div className="flex gap-3">
+                <a href="https://twitter.com/declairo" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-brand-green-500 hover:text-brand-dark" style={{ background: 'var(--bg2)', color: 'var(--text2)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.636 5.903-5.636zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                 </a>
-                <a href="#" className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors" style={{ background: 'var(--bg2)', color: 'var(--text2)' }}>
+                <a href="https://discord.gg/declairo" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-brand-green-500 hover:text-brand-dark" style={{ background: 'var(--bg2)', color: 'var(--text2)' }}>
                   <MessageSquare size={18} />
+                </a>
+                <a href="https://t.me/declairo" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-brand-green-500 hover:text-brand-dark" style={{ background: 'var(--bg2)', color: 'var(--text2)' }}>
+                  <Send size={18} />
                 </a>
               </div>
             </div>
             
             <div className="bg-brand-green-500 p-8 rounded-[2.5rem] shadow-2xl shadow-brand-green-500/20 text-brand-dark">
-              <h3 className="text-xl font-bold mb-4 tracking-tight">Partnerships</h3>
-              <p className="font-medium mb-6 opacity-80">Interested in integrating Declairo in your exchange or wallet?</p>
-              <button className="w-full bg-brand-dark text-white py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity">
+              <h3 className="text-xl font-bold mb-2 tracking-tight">Partnerships</h3>
+              <p className="font-medium mb-2 opacity-80 text-sm">Interested in integrating Declairo into your exchange, wallet, or platform?</p>
+              <a href="mailto:support@declairo.com" className="block text-brand-dark/70 text-xs font-bold mb-6 hover:text-brand-dark transition-colors">support@declairo.com</a>
+              <a href="mailto:support@declairo.com" className="w-full block text-center bg-brand-dark text-white py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity">
                 Apply Here
-              </button>
+              </a>
             </div>
           </div>
 
@@ -141,11 +173,27 @@ export function ContactPage() {
                     onChange={(e) => setFormData({...formData, message: e.target.value})}
                   ></textarea>
                 </div>
-                <button 
+                {error && (
+                  <div className="px-5 py-4 rounded-2xl border border-red-500/30 bg-red-500/10 text-red-500 text-sm font-medium">
+                    ⚠️ {error}
+                  </div>
+                )}
+                <button
                   type="submit"
-                  className="w-full md:w-auto bg-brand-green-500 hover:bg-brand-green-400 text-brand-dark px-12 py-4 rounded-xl font-bold text-sm transition-all shadow-xl shadow-brand-green-500/10 active:scale-95"
+                  disabled={loading}
+                  className="w-full md:w-auto bg-brand-green-500 hover:bg-brand-green-400 text-brand-dark px-12 py-4 rounded-xl font-bold text-sm transition-all shadow-xl shadow-brand-green-500/10 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3"
                 >
-                  Send Message
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Message'
+                  )}
                 </button>
               </form>
             )}
@@ -155,7 +203,7 @@ export function ContactPage() {
 
       {/* Footer */}
       <footer className="py-12 px-6 border-t text-center text-sm font-medium" style={{ borderColor: 'var(--border)' }}>
-        <p style={{ color: 'var(--text3)' }}>© 2026 Declairo. All rights reserved.</p>
+        <p style={{ color: 'var(--text3)' }}>© 2026 Declairo. All rights reserved. · <a href="mailto:support@declairo.com" className="text-brand-green-500 hover:underline">support@declairo.com</a></p>
       </footer>
     </div>
   );

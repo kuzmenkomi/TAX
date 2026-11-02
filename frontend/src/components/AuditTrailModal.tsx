@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Clock
 } from 'lucide-react';
-import { apiFetch } from '../api/client';
+import { apiFetch } from '../api/v1';
 
 interface LotMatch {
   id: number;
@@ -51,8 +51,7 @@ export function AuditTrailModal({ isOpen, onClose, txId, asset, amount }: AuditT
   async function loadMatches() {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await apiFetch(`/accounting/matches/transaction/${txId}`, { token });
+      const res = await apiFetch(`/accounting/matches/transaction/${txId}`, { useAuth: true });
       const data = await res.json();
       setMatches(data.matches || []);
     } catch (err) {

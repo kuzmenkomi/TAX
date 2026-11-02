@@ -1,64 +1,61 @@
 """Email service for sending verification and password reset emails."""
-import os
-from pathlib import Path
+
+from __future__ import annotations
+
+import logging
 from typing import Optional
-from dotenv import load_dotenv
+
 import brevo
 
-# Load environment variables from .env file
-env_path = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(env_path)
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
     """Service for sending emails via Brevo."""
 
     def __init__(self):
-        """Initialize Brevo client."""
-        self.api_key = os.getenv("BREVO_API_KEY")
-        self.from_email = os.getenv("BREVO_FROM_EMAIL", "noreply@declairo.com")
-        
+        settings = get_settings()
+        self.api_key = settings.BREVO_API_KEY
+        self.from_email = settings.BREVO_FROM_EMAIL
+        self.frontend_url = settings.FRONTEND_URL
+
         if self.api_key:
             self.client = brevo.Brevo(api_key=self.api_key)
         else:
             self.client = None
 
     def is_configured(self) -> bool:
-        """Check if Brevo is properly configured."""
         return self.api_key is not None and self.client is not None
 
     def send_verification_email(
         self,
         recipient_email: str,
         verification_token: str,
-        frontend_url: str = "http://localhost:5173",
+        frontend_url: str | None = None,
     ) -> bool:
-        """Send email verification link to user."""
+        frontend_url = frontend_url or self.frontend_url
         if not self.is_configured():
-            # Development mode: print to console
             verify_link = f"{frontend_url}/verify-email?token={verification_token}"
-            print(f"\n[DEV MODE] Verification email for {recipient_email}:")
-            print(f"🔗 Click here: {verify_link}\n")
+            logger.info("[DEV MODE] Verification email for %s: %s", recipient_email, verify_link)
             return True
 
         try:
             verify_link = f"{frontend_url}/verify-email?token={verification_token}"
-            
+
             sender = brevo.SendTransacEmailRequestSender(
                 email=self.from_email,
                 name="Declairo",
             )
-            
-            to_item = brevo.SendTransacEmailRequestToItem(
-                email=recipient_email,
-            )
-            
+            to_item = brevo.SendTransacEmailRequestToItem(email=recipient_email)
+
             self.client.transactional_emails.send_transac_email(
                 sender=sender,
                 to=[to_item],
                 subject="Confirm your Declairo email address",
                 html_content=f"""
-                <h2>Welcome to Declairo! 🎉</h2>
+                <h2>Welcome to Declairo!</h2>
                 <p>Please confirm your email address by clicking the link below:</p>
                 <p>
                     <a href="{verify_link}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
@@ -70,38 +67,33 @@ class EmailService:
                 <p>If you didn't create this account, please ignore this email.</p>
                 """,
             )
-            print(f"✅ Verification email sent to {recipient_email}")
+            logger.info("Verification email sent to %s", recipient_email)
             return True
-        except Exception as e:
-            print(f"❌ Failed to send verification email: {str(e)}")
+        except Exception as exc:
+            logger.exception("Failed to send verification email to %s: %s", recipient_email, exc)
             return False
 
     def send_password_reset_email(
         self,
         recipient_email: str,
         reset_token: str,
-        frontend_url: str = "http://localhost:5173",
+        frontend_url: str | None = None,
     ) -> bool:
-        """Send password reset link to user."""
+        frontend_url = frontend_url or self.frontend_url
         if not self.is_configured():
-            # Development mode: print to console
             reset_link = f"{frontend_url}/password-reset?token={reset_token}"
-            print(f"\n[DEV MODE] Password reset email for {recipient_email}:")
-            print(f"🔗 Click here: {reset_link}\n")
+            logger.info("[DEV MODE] Password reset email for %s: %s", recipient_email, reset_link)
             return True
 
         try:
             reset_link = f"{frontend_url}/password-reset?token={reset_token}"
-            
+
             sender = brevo.SendTransacEmailRequestSender(
                 email=self.from_email,
                 name="Declairo",
             )
-            
-            to_item = brevo.SendTransacEmailRequestToItem(
-                email=recipient_email,
-            )
-            
+            to_item = brevo.SendTransacEmailRequestToItem(email=recipient_email)
+
             self.client.transactional_emails.send_transac_email(
                 sender=sender,
                 to=[to_item],
@@ -120,14 +112,63 @@ class EmailService:
                 <p>If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
                 """,
             )
-            print(f"✅ Password reset email sent to {recipient_email}")
+            logger.info("Password reset email sent to %s", recipient_email)
             return True
-        except Exception as e:
-            print(f"❌ Failed to send password reset email: {str(e)}")
+        except Exception as exc:
+            logger.exception("Failed to send password reset email to %s: %s", recipient_email, exc)
             return False
 
 
-# Singleton instance
+    def send_contact_email(
+        self,
+        sender_name: str,
+        sender_email: str,
+        message: str,
+    ) -> bool:
+        """Send a contact form submission to support@declairo.com."""
+        support_email = "support@declairo.com"
+        subject = f"[Contact Form] New message from {sender_name}"
+        html_content = f"""
+        <h2>New Contact Form Submission</h2>
+        <table style="border-collapse:collapse;width:100%;font-family:sans-serif">
+            <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Name</strong></td><td style="padding:8px;border:1px solid #ddd;">{sender_name}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd;"><a href="mailto:{sender_email}">{sender_email}</a></td></tr>
+        </table>
+        <h3>Message:</h3>
+        <p style="background:#f9f9f9;padding:16px;border-left:4px solid #10b981;white-space:pre-wrap">{message}</p>
+        <hr/>
+        <p style="color:#999;font-size:12px">Sent via Declairo Contact Form</p>
+        """
+
+        if not self.is_configured():
+            logger.info(
+                "[DEV MODE] Contact form from %s <%s>: %s",
+                sender_name, sender_email, message[:100]
+            )
+            return True
+
+        try:
+            sender = brevo.SendTransacEmailRequestSender(
+                email=self.from_email,
+                name="Declairo Website",
+            )
+            to_item = brevo.SendTransacEmailRequestToItem(email=support_email)
+            reply_to = brevo.SendTransacEmailRequestReplyTo(email=sender_email, name=sender_name)
+
+            self.client.transactional_emails.send_transac_email(
+                sender=sender,
+                to=[to_item],
+                reply_to=reply_to,
+                subject=subject,
+                html_content=html_content,
+            )
+            logger.info("Contact email forwarded from %s to %s", sender_email, support_email)
+            return True
+        except Exception as exc:
+            logger.exception("Failed to send contact email from %s: %s", sender_email, exc)
+            return False
+
+
 _email_service: Optional[EmailService] = None
 
 

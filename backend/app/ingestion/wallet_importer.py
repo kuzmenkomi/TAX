@@ -15,6 +15,7 @@ Killer feature: пользователь вставляет адрес коше�
 Добавить новую сеть: скопируй EVMImporter, поменяй base_url.
 """
 
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -22,6 +23,8 @@ from typing import Any
 
 import pandas as pd
 import requests
+
+logger = logging.getLogger(__name__)
 
 # ─── Детектор сети по адресу ────────────────────────────────────────────────
 
@@ -186,10 +189,10 @@ class EVMImporter:
             msg = body.get("message", "")
             if "No transactions" in msg or body.get("result") == []:
                 return []
-            print(f"⚠️  [EVMImporter] API ответил: {body.get('message')} — {body.get('result')}")
+            logger.warning("EVMImporter API response: %s — %s", body.get('message'), body.get('result'))
             return []
         except Exception as e:
-            print(f"⚠️  [EVMImporter] Ошибка запроса: {e}")
+            logger.error("EVMImporter request error: %s", e)
             return []
 
 
@@ -219,7 +222,7 @@ class SolanaImporter:
                 r.raise_for_status()
                 txs = r.json()
             except Exception as e:
-                print(f"⚠️  [SolanaImporter] {e}")
+                logger.error("SolanaImporter request error: %s", e)
                 break
 
             if not txs:

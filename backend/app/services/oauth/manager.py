@@ -1,3 +1,4 @@
+import secrets
 import time
 from typing import Dict, Any, Optional
 from jose import jwt, JWTError
@@ -5,11 +6,15 @@ from fastapi import HTTPException
 from app.core.config import get_settings
 from .base import BaseOAuthProvider
 from .coinbase import CoinbaseProvider
+from .google import GoogleProvider
+from .github import GitHubProvider
 
 class OAuthManager:
     def __init__(self):
         self._providers: Dict[str, BaseOAuthProvider] = {
-            "coinbase": CoinbaseProvider()
+            "coinbase": CoinbaseProvider(),
+            "google":   GoogleProvider(),
+            "github":   GitHubProvider(),
         }
 
     def get_provider(self, name: str) -> BaseOAuthProvider:
@@ -23,12 +28,9 @@ class OAuthManager:
         settings = get_settings()
         payload = {
             "user_id": user_id,
-            "exp": int(time.time()) + 600, # 10 minutes
-            "nonce": secrets.token_urlsafe(16) if 'secrets' in globals() else str(time.time())
+            "exp": int(time.time()) + 600,  # 10 minutes
+            "nonce": secrets.token_urlsafe(16),
         }
-        # Explicit import of secrets if not global
-        import secrets
-        payload["nonce"] = secrets.token_urlsafe(16)
         
         return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
 

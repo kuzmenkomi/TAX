@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { verifyEmail } from '../api/client';
+import apiV1 from '../api/v1';
 import { useI18n } from '../i18n/I18nContext';
 
 export function EmailVerificationPage() {
@@ -22,7 +22,7 @@ export function EmailVerificationPage() {
 
     const verify = async () => {
       try {
-        const result = await verifyEmail(token);
+        const result = await apiV1.auth.verifyEmail(token);
         setStatus('success');
         setMessage(result.message || 'Email verified successfully!');
         

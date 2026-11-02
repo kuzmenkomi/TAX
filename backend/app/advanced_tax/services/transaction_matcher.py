@@ -4,7 +4,7 @@ Links cryptocurrency withdrawals to bank deposits
 Creates complete audit trail: Crypto → Exchange → Bank -> Fiat
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 from decimal import Decimal
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field

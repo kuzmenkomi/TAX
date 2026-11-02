@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -44,19 +44,39 @@ def read_portfolio(
 
 @router.get("/br/dashboard", response_model=DashboardResponse)
 def read_dashboard(
+    tax_year: int | None = Query(default=None, ge=1900, le=2100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DashboardResponse:
-    return DashboardResponse.model_validate(get_dashboard(db, current_user))
+    return DashboardResponse.model_validate(get_dashboard(db, current_user, tax_year=tax_year))
+
+
+def _portfolio_summary(
+    tax_year: int | None,
+    current_user: User,
+    db: Session,
+) -> DashboardResponse:
+    return DashboardResponse.model_validate(get_dashboard(db, current_user, tax_year=tax_year))
 
 
 @router.get("/summary", response_model=DashboardResponse)
 def get_summary(
+    tax_year: int | None = Query(default=None, ge=1900, le=2100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DashboardResponse:
-    """Alias for /br/dashboard expected by the unified frontend client."""
-    return DashboardResponse.model_validate(get_dashboard(db, current_user))
+    """Dashboard portfolio snapshot (live prices + open positions)."""
+    return _portfolio_summary(tax_year, current_user, db)
+
+
+@router.get("/portfolio/summary", response_model=DashboardResponse, include_in_schema=False)
+def get_summary_frontend_alias(
+    tax_year: int | None = Query(default=None, ge=1900, le=2100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DashboardResponse:
+    """Frontend client calls /portfolio/summary."""
+    return _portfolio_summary(tax_year, current_user, db)
 
 
 @router.get("/unrealized-pnl")

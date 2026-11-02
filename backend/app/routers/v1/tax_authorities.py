@@ -2,21 +2,17 @@
 Tax Authority API Endpoints
 REST API for tax filing, compliance, and status tracking
 """
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-from decimal import Decimal
-from sqlalchemy.orm import Session
+import logging
+from typing import Dict, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from pydantic import BaseModel
 
-from app.core.db import get_db
+from app.core.api_errors import server_error
 from app.auth import get_current_user
 from app.models.user import User
 from app.integrations.tax_authorities import (
     TaxAuthorityRegistry,
     TaxAuthorityManager,
-    SubmissionStatus,
-    ComplianceStatus,
 )
 
 
@@ -59,6 +55,7 @@ class JurisdictionMetadata(BaseModel):
 
 
 # Create router
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tax-authority", tags=["Tax Authorities"])
 manager = TaxAuthorityManager()
 
@@ -86,8 +83,8 @@ async def get_tax_jurisdiction(
     try:
         info = manager.get_jurisdiction_info(code)
         return info
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Jurisdiction not found") from None
 
 
 # ==================== FILING SUBMISSION ENDPOINTS ====================
@@ -125,10 +122,11 @@ async def submit_tax_filing(
             if not manager.has_client(request.jurisdiction_code):
                 manager.register_client(request.jurisdiction_code, config)
         except Exception as e:
+            logger.exception("Tax authority client registration failed")
             raise HTTPException(
                 status_code=401,
-                detail=f"Authentication failed: {str(e)}"
-            )
+                detail="Authentication failed for this jurisdiction",
+            ) from e
         
         client = manager.get_client(request.jurisdiction_code)
         
@@ -149,7 +147,7 @@ async def submit_tax_filing(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Filing submission error: {str(e)}")
+        raise server_error(logger, e) from e
 
 
 @router.get("/filing-status/{jurisdiction_code}/{filing_id}")
@@ -196,7 +194,7 @@ async def get_filing_status(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Status query error: {str(e)}")
+        raise server_error(logger, e) from e
 
 
 # ==================== COMPLIANCE ENDPOINTS ====================
@@ -239,7 +237,7 @@ async def check_filing_compliance(
         if not manager.has_client(jurisdiction_code):
             try:
                 manager.register_client(jurisdiction_code, config)
-            except:
+            except Exception:
                 pass  # Client registration not required for compliance check
         
         client = manager.get_client(jurisdiction_code)
@@ -258,7 +256,7 @@ async def check_filing_compliance(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Compliance check error: {str(e)}")
+        raise server_error(logger, e) from e
 
 
 # ==================== FORMS ENDPOINTS ====================
@@ -298,7 +296,7 @@ async def get_required_forms(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Forms retrieval error: {str(e)}")
+        raise server_error(logger, e) from e
 
 
 # ==================== FILING SCHEDULE ENDPOINTS ====================

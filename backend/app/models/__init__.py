@@ -8,7 +8,10 @@ from .tax_profile import UserTaxProfile
 from .reconciliation import ReconciliationIssue
 from .transaction import Transaction
 from .user import User
+from .refresh_token import RefreshToken
+from .support_impersonation import SupportImpersonationLog
 from .accounting import LotMatch
+from .subscription import Subscription
 
 # New TLH + Open Banking models
 from .tlh_models import (
@@ -43,9 +46,12 @@ __all__ = [
     "TaxRule",
     "Transaction",
     "User",
+    "SupportImpersonationLog",
     "LotMatch",
     "UserTaxProfile",
     "WalletConnection",
+    "Subscription",
+    "RefreshToken",
     # TLH Models
     "TLHOpportunity",
     "TLHExecutionHistory",

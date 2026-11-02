@@ -27,7 +27,7 @@ class AnalysisResultResponse(BaseModel):
     dedup: dict[str, Any]
     pnl: dict[str, Any]
     issues: list[Any]
-    analysis_run_id: int
+    analysis_run_id: Optional[int] = None
     quote_currency: str
     use_ptax: bool
     income_events: dict[str, Any] = {}
@@ -38,9 +38,13 @@ class AnalysisResultResponse(BaseModel):
     offshore_onshore: dict[str, Any] = {}
     tax_savings_opportunities: list[Any] = []
     p2p_self_custody_count: int = 0
-    # Added for Audit Trail and UX
+    # Audit Trail and UX
     lot_matches: list[dict[str, Any]] = []
     transfer_matches: list[dict[str, Any]] = []
+    # Deduplication stats
+    duplicate: bool = False          # True if this exact file was already imported
+    tx_imported: int = 0             # rows actually saved to DB
+    tx_skipped: int = 0              # rows skipped as duplicates
 
 
 class MultiAnalysisResultResponse(AnalysisResultResponse):

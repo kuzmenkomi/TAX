@@ -3,11 +3,35 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
+import logging
+
 from fastapi import HTTPException, status
+
+from app.core.api_errors import server_error
+
+logger = logging.getLogger(__name__)
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.security import decrypt_secret_if_needed, encrypt_secret_if_needed
-from app.models import ExchangeConnection, Portfolio, User
+from app.models import AnalysisRun, ExchangeConnection, Portfolio, Transaction, User
+
+
+def count_exchange_transactions(db: Session, connection: ExchangeConnection) -> int:
+    """Count transactions imported for this exchange provider (via analysis run format)."""
+    provider = (connection.exchange_name or connection.provider or "").strip().lower()
+    if not provider:
+        return 0
+    return (
+        db.query(func.count(Transaction.id))
+        .join(AnalysisRun, Transaction.run_id == AnalysisRun.id)
+        .filter(
+            Transaction.user_id == connection.user_id,
+            AnalysisRun.summary_json.ilike(f'%"format": "{provider}"%'),
+        )
+        .scalar()
+        or 0
+    )
 
 
 def _ensure_portfolio(db: Session, user: User) -> Portfolio:
@@ -117,6 +141,19 @@ def sync_exchange(db: Session, user: User, exchange_id: int) -> dict:
         conn.last_error = None
         db.commit()
 
+        if not df.empty:
+            from app.services.analysis_service import persist_run
+            persist_run(
+                db=db,
+                user_id=user.id,
+                normalized=df,
+                summary={
+                    "format": conn.exchange_name or conn.provider,
+                    "exchange_sync": True,
+                    "rows_processed": len(df),
+                }
+            )
+
         return {
             "exchange_id": exchange_id,
             "exchange": conn.exchange_name or conn.provider,
@@ -127,4 +164,4 @@ def sync_exchange(db: Session, user: User, exchange_id: int) -> dict:
         conn.status = "error"
         conn.last_error = str(e)
         db.commit()
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+        raise server_error(logger, e, public_message="Could not reach the exchange. Please try again later.")

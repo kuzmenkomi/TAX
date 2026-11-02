@@ -1,7 +1,6 @@
 """AI Tax Consultant API — ask questions, get alerts, analyze taxes."""
 from __future__ import annotations
 
-from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -13,6 +12,7 @@ from app.models import User
 from app.services.ai_service import AITaxService
 from app.services.ai_alerts import ProactiveAlertEngine
 from app.services.llm_provider import get_llm_provider
+from app.services import billing_service
 
 router = APIRouter(prefix="/ai", tags=["ai-consultant"])
 
@@ -30,6 +30,7 @@ def ask_ai(
     db: Session = Depends(get_db),
 ) -> dict:
     """Ask the AI tax consultant a question with full portfolio context."""
+    billing_service.check_limit(db, current_user.id, "ai")
     service = AITaxService(db)
     result = service.ask(
         question=payload.question,
@@ -58,6 +59,7 @@ def get_alerts(
     db: Session = Depends(get_db),
 ) -> dict:
     """Get proactive tax alerts for an analysis run."""
+    billing_service.check_limit(db, current_user.id, "ai")
     engine = ProactiveAlertEngine(db)
     alerts = engine.check_alerts(current_user.id, run_id, country)
     return {

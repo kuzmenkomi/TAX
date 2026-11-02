@@ -139,7 +139,7 @@ def trigger_auto_match(
     Trigger cross-wallet auto-matching for all unresolved issues in a run.
     Searches buy orders across ALL user's loaded analysis runs.
     """
-    run = get_run(db, current_user, run_id)
+    _ = get_run(db, current_user, run_id)
     engine = ReconciliationEngine(db)
 
     # Get unresolved issues

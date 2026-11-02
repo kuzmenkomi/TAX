@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -29,6 +29,8 @@ class Transaction(Base):
     block_number = Column(BigInteger(), nullable=True)
     proof_url = Column(Text, nullable=True)
     custom_tag = Column(String(64), nullable=True)  # User override: "gift", "personal", "lost", "stolen", etc.
+    linked_bank_txn_id = Column(String(100), nullable=True, index=True)
+    is_p2p = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User")

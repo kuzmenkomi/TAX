@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../api/client';
+import { apiFetch } from '../api/v1';
 import { FileText, Download, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface ExportFormat {
@@ -109,18 +109,17 @@ const TaxExportManager: React.FC<TaxExportManagerProps> = ({ jurisdictionCode, t
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          
+
           {/* Format selection */}
           <div className="border rounded-[2.5rem] p-8 shadow-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
             <h3 className="text-xs font-black uppercase tracking-widest mb-6" style={{ color: 'var(--text2)' }}>Archive Formats</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {supportedFormats.map((fmt) => (
                 <button key={fmt.format} onClick={() => setSelectedFormat(fmt.format)}
-                  className={`p-5 rounded-3xl border text-left transition-all hover:scale-[1.02] ${
-                    selectedFormat === fmt.format
+                  className={`p-5 rounded-3xl border text-left transition-all hover:scale-[1.02] ${selectedFormat === fmt.format
                       ? 'border-brand-green-500 bg-brand-green-500/10'
                       : 'hover:bg-brand-green-500/5'
-                  }`}
+                    }`}
                   style={selectedFormat !== fmt.format ? { background: 'var(--bg2)', borderColor: 'var(--border)' } : undefined}>
                   <div className="flex items-start gap-4">
                     <span className="text-3xl bg-surface p-2 rounded-2xl shadow-sm" style={{ background: 'var(--surface)' }}>{fmt.icon}</span>
@@ -139,11 +138,11 @@ const TaxExportManager: React.FC<TaxExportManagerProps> = ({ jurisdictionCode, t
             <div className="border rounded-[2.5rem] p-8 shadow-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--text2)' }}>Data Preview</h3>
-                <div className="px-3 py-1 bg-[#6af0c8]/10 text-[#6af0c8] rounded-full text-[9px] font-black uppercase tracking-widest border border-[#6af0c8]/20">
+                <div className="px-3 py-1 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-[9px] font-black uppercase tracking-widest border border-[var(--accent)]/20">
                   Ready for generation
                 </div>
               </div>
-              
+
               <div className="border rounded-3xl p-6 space-y-6" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
@@ -157,7 +156,7 @@ const TaxExportManager: React.FC<TaxExportManagerProps> = ({ jurisdictionCode, t
                     </p>
                   </div>
                 </div>
-                
+
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3" style={{ color: 'var(--text)' }}>Stream Metadata</p>
                   <pre className="p-5 rounded-2xl font-mono text-[11px] h-48 overflow-auto border shadow-inner" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text2)' }}>
@@ -180,7 +179,7 @@ const TaxExportManager: React.FC<TaxExportManagerProps> = ({ jurisdictionCode, t
         <div className="space-y-6">
           <div className="border rounded-[2.5rem] p-8 shadow-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
             <h3 className="text-sm font-black uppercase tracking-widest mb-8 underline decoration-brand-green-500/30 decoration-4 underline-offset-8" style={{ color: 'var(--text)' }}>Preferences</h3>
-            
+
             <div className="space-y-5">
               {[
                 { label: 'Include Tax Summary', checked: includeSummary, setter: setIncludeSummary },

@@ -57,7 +57,7 @@ class MexicoTaxJurisdiction(BaseTaxJurisdiction):
         Returns:
             TaxCalculationResult with ISR calculation
         """
-        total_gain = TaxCalculator.calculate_total_gain(gains)
+        total_gain = self.calculate_total_gain(gains)
         
         # Calculate ISR using progressive rates
         isr_tax = TaxCalculator.apply_progressive_rates(total_gain, self.ISR_RATES)

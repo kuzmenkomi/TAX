@@ -1,87 +1,225 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldAlert, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Info, 
+import {
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
   Search,
   ArrowRight,
   TrendingDown,
   HelpCircle,
   FileWarning,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import apiV1 from '../api/v1';
+import { SkeletonStatCards, SkeletonTable, SkeletonText } from './ui/Skeleton';
 
 interface Issue {
-  code: string;
-  severity: 'error' | 'warning' | 'info';
+  id: string | number;
+  severity: 'error' | 'warning' | 'info' | string;
   message: string;
   asset?: string;
-  row_index?: number;
-  count?: number;
-  timestamp?: string;
+  code: string;
 }
 
 export function DataQualityCenter() {
-  const { analyzeResult } = useAppContext();
-  const issues = (analyzeResult?.issues as Issue[]) || [];
+  const { analyzeResult, backendOnline, dataVersion } = useAppContext();
+  const [analysisSnapshot, setAnalysisSnapshot] = useState(analyzeResult);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (analyzeResult) {
+      setAnalysisSnapshot(analyzeResult);
+    }
+  }, [analyzeResult]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadLatestAnalysis() {
+      if (!backendOnline) {
+        if (active) {
+          setAnalysisSnapshot(analyzeResult);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const latest = await apiV1.analysis.getTaxAnalysis();
+        if (active) {
+          setAnalysisSnapshot(latest ?? analyzeResult);
+        }
+      } catch {
+        if (active) {
+          setAnalysisSnapshot(analyzeResult);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadLatestAnalysis();
+    return () => {
+      active = false;
+    };
+  }, [backendOnline, dataVersion, analyzeResult]);
 
   const stats = useMemo(() => {
+    if (!analysisSnapshot) return { errors: 0, warnings: 0, info: 0, total: 0 };
     return {
-      errors: issues.filter(i => i.severity === 'error').length,
-      warnings: issues.filter(i => i.severity === 'warning').length,
-      info: issues.filter(i => i.severity === 'info').length,
-      total: issues.length
+      errors: analysisSnapshot.issues?.filter((i: any) => i.severity === 'error').length || 0,
+      warnings: analysisSnapshot.issues?.filter((i: any) => i.severity === 'warning').length || 0,
+      info: analysisSnapshot.issues?.filter((i: any) => i.severity === 'info').length || 0,
+      total: analysisSnapshot.issues?.length || 0
     };
-  }, [issues]);
+  }, [analysisSnapshot]);
 
-  if (stats.total === 0 && analyzeResult) {
+  const issues: Issue[] = useMemo(() => {
+    return analysisSnapshot?.issues?.map((i: any) => ({
+      id: i.id,
+      severity: i.severity,
+      message: i.description,
+      asset: i.asset,
+      code: i.issue_type
+    })) || [];
+  }, [analysisSnapshot]);
+
+  if (loading) {
     return (
-      <div className="p-12 text-center border rounded-[3rem] bg-brand-green-500/5" style={{ borderColor: 'var(--border)' }}>
-        <div className="w-20 h-20 bg-brand-green-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-brand-green-500/5">
-          <CheckCircle2 size={40} className="text-brand-green-500" />
-        </div>
-        <h2 className="text-2xl font-syne font-bold mb-2" style={{ color: 'var(--text)' }}>Data is Pristine</h2>
-        <p className="text-[13px] max-w-sm mx-auto" style={{ color: 'var(--text3)' }}>
-          No quality issues detected. Your tax calculations are highly reliable and ready for official filing.
-        </p>
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <SkeletonText lines={2} className="w-[280px]" />
+        <SkeletonStatCards />
+        <SkeletonTable rows={4} />
       </div>
     );
   }
 
-  if (!analyzeResult) return null;
+  if (stats.total === 0 || !analysisSnapshot) {
+    return (
+      <div className="space-y-[64px] animate-in fade-in duration-700">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+          <div className="p-[24px] rounded-[16px] flex items-center gap-[20px] shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div className="text-[#ff4d6a] opacity-80">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <p className="text-[20px] font-black leading-none mb-[8px]" style={{ color: 'var(--text)' }}> — </p>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text3)' }}>Open Issues</p>
+            </div>
+          </div>
+
+          <div className="p-[24px] rounded-[16px] flex items-center gap-[20px] shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div className="text-[#F3BA2F] opacity-80">
+              <Clock size={20} />
+            </div>
+            <div>
+              <p className="text-[20px] font-black leading-none mb-[8px]" style={{ color: 'var(--text)' }}> — </p>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text3)' }}>In Review</p>
+            </div>
+          </div>
+
+          <div className="p-[24px] rounded-[16px] flex items-center gap-[20px] shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <div className="text-[var(--accent)] opacity-80">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <p className="text-[20px] font-black leading-none mb-[8px]" style={{ color: 'var(--text)' }}> — </p>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text3)' }}>Resolved</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Center Visual */}
+        <div className="flex flex-col items-center justify-center text-center max-w-[600px] mx-auto">
+          <div className="w-[96px] h-[96px] rounded-[24px] flex items-center justify-center mb-[40px] shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <CheckCircle2 size={40} style={{ color: 'var(--text2)' }} />
+          </div>
+
+          <h2 className="font-syne font-black text-[32px] mb-[16px] tracking-tight" style={{ color: 'var(--text)' }}>All clear — no open issues</h2>
+          <p className="text-[15px] leading-relaxed mb-[48px]" style={{ color: 'var(--text3)' }}>
+            Your Resolution Center is empty. Cases are automatically created when Declairo detects tax discrepancies, audit flags, or compliance issues in your portfolio.
+          </p>
+
+          <div className="flex gap-[20px] w-full">
+            <button className="flex-1 flex items-center gap-[16px] p-[24px] rounded-[20px] transition-all group shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(16, 185, 129,0.4)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            >
+              <div className="w-[40px] h-[40px] rounded-[12px] bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+                <ShieldAlert size={20} className="text-[var(--accent)]" />
+              </div>
+              <div className="text-left">
+                <p className="text-[15px] font-bold" style={{ color: 'var(--text)' }}>Tax Dispute</p>
+                <p className="text-[11px]" style={{ color: 'var(--text3)' }}>Contest a tax assessment</p>
+              </div>
+              <ArrowRight size={16} className="ml-auto group-hover:text-[var(--accent)]" style={{ color: 'var(--text3)' }} />
+            </button>
+
+            <button className="flex-1 flex items-center gap-[16px] p-[24px] rounded-[20px] transition-all group shadow-[var(--card-shadow)]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(16, 185, 129,0.4)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            >
+              <div className="w-[40px] h-[40px] rounded-[12px] bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+                <CheckCircle2 size={20} className="text-[var(--accent)]" />
+              </div>
+              <div className="text-left">
+                <p className="text-[15px] font-bold" style={{ color: 'var(--text)' }}>Audit Support</p>
+                <p className="text-[11px]" style={{ color: 'var(--text3)' }}>Prepare audit documentation</p>
+              </div>
+              <ArrowRight size={16} className="ml-auto group-hover:text-[var(--accent)]" style={{ color: 'var(--text3)' }} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-[32px] animate-in fade-in duration-700">
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-8 rounded-[2.5rem] border bg-danger/5" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <ShieldAlert size={24} className="text-danger" />
-            <span className="text-3xl font-black text-danger">{stats.errors}</span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+        <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-[12px]">
+            <div className="w-[32px] h-[32px] rounded-full bg-[rgba(255,77,106,0.1)] flex items-center justify-center">
+              <ShieldAlert size={16} className="text-[#ff4d6a]" />
+            </div>
+            <div>
+              <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}>{stats.errors}</p>
+              <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>Open Issues</p>
+            </div>
           </div>
-          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--text2)' }}>Critical Errors</h3>
-          <p className="text-[11px] mt-1 opacity-60" style={{ color: 'var(--text3)' }}>Must be fixed for accurate taxes</p>
         </div>
 
-        <div className="p-8 rounded-[2.5rem] border bg-[#f0a86a]/5" style={{ borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <AlertTriangle size={24} className="text-[#f0a86a]" />
-            <span className="text-3xl font-black text-[#f0a86a]">{stats.warnings}</span>
+        <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-[12px]">
+            <div className="w-[32px] h-[32px] rounded-full bg-[rgba(243,186,47,0.1)] flex items-center justify-center">
+              <Clock size={16} className="text-[#F3BA2F]" />
+            </div>
+            <div>
+              <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}>{stats.warnings}</p>
+              <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>In Review</p>
+            </div>
           </div>
-          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--text2)' }}>Warnings</h3>
-          <p className="text-[11px] mt-1 opacity-60" style={{ color: 'var(--text3)' }}>Potential data gaps detected</p>
         </div>
 
-        <div className="p-8 rounded-[2.5rem] border" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <Info size={24} className="text-brand-green-500" />
-            <span className="text-3xl font-black" style={{ color: 'var(--text)' }}>{stats.info}</span>
+        <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-[12px]">
+            <div className="w-[32px] h-[32px] rounded-full bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+              <CheckCircle2 size={16} className="text-[var(--accent)]" />
+            </div>
+            <div>
+              <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}>{stats.info}</p>
+              <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>Resolved</p>
+            </div>
           </div>
-          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--text2)' }}>Optimization Info</h3>
-          <p className="text-[11px] mt-1 opacity-60" style={{ color: 'var(--text3)' }}>Automatic improvements applied</p>
         </div>
       </div>
 
@@ -102,29 +240,26 @@ export function DataQualityCenter() {
               layout
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className={`p-6 rounded-[1.5rem] border flex items-start gap-5 transition-all hover:translate-x-1 ${
-                issue.severity === 'error' ? 'bg-danger/5 border-danger/10' : 
-                issue.severity === 'warning' ? 'bg-[#f0a86a]/5 border-[#f0a86a]/10' :
-                'bg-brand-green-500/5 border-brand-green-500/10'
-              }`}
+              className={`p-6 rounded-[1.5rem] border flex items-start gap-5 transition-all hover:translate-x-1 ${issue.severity === 'error' ? 'bg-danger/5 border-danger/10' :
+                  issue.severity === 'warning' ? 'bg-[#f0a86a]/5 border-[#f0a86a]/10' :
+                    'bg-brand-green-500/5 border-brand-green-500/10'
+                }`}
             >
-              <div className={`mt-1 p-2 rounded-xl ${
-                issue.severity === 'error' ? 'bg-danger/10 text-danger' : 
-                issue.severity === 'warning' ? 'bg-[#f0a86a]/10 text-[#f0a86a]' :
-                'bg-brand-green-500/10 text-brand-green-500'
-              }`}>
-                {issue.severity === 'error' ? <ShieldAlert size={20} /> : 
-                 issue.severity === 'warning' ? <AlertTriangle size={20} /> :
-                 <Info size={20} />}
+              <div className={`mt-1 p-2 rounded-xl ${issue.severity === 'error' ? 'bg-danger/10 text-danger' :
+                  issue.severity === 'warning' ? 'bg-[#f0a86a]/10 text-[#f0a86a]' :
+                    'bg-brand-green-500/10 text-brand-green-500'
+                }`}>
+                {issue.severity === 'error' ? <ShieldAlert size={20} /> :
+                  issue.severity === 'warning' ? <AlertTriangle size={20} /> :
+                    <Info size={20} />}
               </div>
 
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-[9px] font-black uppercase tracking-[2px] px-2 py-0.5 rounded ${
-                    issue.severity === 'error' ? 'bg-danger/10 text-danger' : 
-                    issue.severity === 'warning' ? 'bg-[#f0a86a]/10 text-[#f0a86a]' :
-                    'bg-brand-green-500/10 text-brand-green-500'
-                  }`}>
+                  <span className={`text-[9px] font-black uppercase tracking-[2px] px-2 py-0.5 rounded ${issue.severity === 'error' ? 'bg-danger/10 text-danger' :
+                      issue.severity === 'warning' ? 'bg-[#f0a86a]/10 text-[#f0a86a]' :
+                        'bg-brand-green-500/10 text-brand-green-500'
+                    }`}>
                     {issue.code.replace(/_/g, ' ')}
                   </span>
                   {issue.asset && (
@@ -134,9 +269,9 @@ export function DataQualityCenter() {
                   )}
                 </div>
                 <p className="text-[13px] font-bold mb-2" style={{ color: 'var(--text)' }}>{issue.message}</p>
-                
+
                 {/* Smart Action / Insight */}
-                <div className="mt-4 p-3 rounded-xl bg-black/5 flex items-center justify-between">
+                <div className="mt-4 p-3 rounded-xl flex items-center justify-between" style={{ background: 'var(--card2)' }}>
                   <div className="flex items-center gap-2">
                     <HelpCircle size={12} className="opacity-40" style={{ color: 'var(--text)' }} />
                     <span className="text-[11px] font-medium" style={{ color: 'var(--text3)' }}>
@@ -153,22 +288,22 @@ export function DataQualityCenter() {
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
 
-      <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-brand-green-500/10 to-transparent border flex flex-col md:flex-row items-center gap-8 text-center md:text-left" style={{ borderColor: 'var(--border)' }}>
-        <div className="w-16 h-16 rounded-2xl bg-brand-green-500 flex items-center justify-center shadow-lg shadow-brand-green-500/20">
-          <TrendingDown size={32} className="text-brand-dark" />
+        <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-brand-green-500/10 to-transparent border flex flex-col md:flex-row items-center gap-8 text-center md:text-left mt-[32px]" style={{ borderColor: 'var(--border)' }}>
+          <div className="w-16 h-16 rounded-2xl bg-brand-green-500 flex items-center justify-center shadow-lg shadow-brand-green-500/20">
+            <TrendingDown size={32} className="text-brand-dark" />
+          </div>
+          <div>
+            <h3 className="text-lg font-syne font-bold mb-1" style={{ color: 'var(--text)' }}>Optimize Your Liability</h3>
+            <p className="text-[12px] opacity-70 leading-relaxed" style={{ color: 'var(--text3)' }}>
+              We detected <strong>3 opportunities</strong> to reduce your capital gains tax using Tax Loss Harvesting.
+              Resolving the data issues above might reveal even more savings.
+            </p>
+          </div>
+          <button className="px-6 py-3 bg-brand-green-500 text-brand-dark rounded-2xl text-[12px] font-black hover:scale-105 transition-transform">
+            View Optimizer
+          </button>
         </div>
-        <div>
-          <h3 className="text-lg font-syne font-bold mb-1" style={{ color: 'var(--text)' }}>Optimize Your Liability</h3>
-          <p className="text-[12px] opacity-70 leading-relaxed" style={{ color: 'var(--text3)' }}>
-            We detected <strong>3 opportunities</strong> to reduce your capital gains tax using Tax Loss Harvesting. 
-            Resolving the data issues above might reveal even more savings.
-          </p>
-        </div>
-        <button className="px-6 py-3 bg-brand-green-500 text-brand-dark rounded-2xl text-[12px] font-black hover:scale-105 transition-transform">
-          View Optimizer
-        </button>
       </div>
     </div>
   );

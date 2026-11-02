@@ -41,6 +41,9 @@ class UserTaxProfile(Base):
     # ['PDF', 'XML', 'CSV', 'ODS']
     preferred_export_formats = Column(String(255), default="PDF,CSV", nullable=False)
     
+    # Dashboard preferences
+    dashboard_rate_preference = Column(String(20), default="OFFICIAL", nullable=False)  # OFFICIAL, PARALLEL (e.g. Dolar Blue)
+    
     # Professional contact
     tax_advisor_email = Column(String(255), nullable=True)
     tax_advisor_name = Column(String(255), nullable=True)

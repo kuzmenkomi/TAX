@@ -56,6 +56,29 @@ class FinancialDataService:
         return FALLBACK_RATES.get(fallback_key, Decimal("1.0"))
 
     @classmethod
+    def get_parallel_rate(cls, from_currency: str, to_currency: str, date: Optional[datetime] = None) -> Decimal:
+        """
+        Get parallel exchange rate (e.g., Dólar Blue in Argentina).
+        Currently supports ARS (Blue).
+        """
+        if from_currency == "USD" and to_currency == "ARS":
+            try:
+                # Using Bluelytics API for Argentina's Dólar Blue
+                url = "https://api.bluelytics.com.ar/v2/latest"
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                # Use 'blue' price (sell rate is usually what matters for wealth)
+                rate = data.get("blue", {}).get("value_sell")
+                if rate:
+                    return Decimal(str(rate))
+            except Exception as e:
+                logger.error(f"Error fetching Dólar Blue rate: {e}")
+        
+        # Fallback to official rate if parallel not available or not supported for this pair
+        return cls.get_exchange_rate(from_currency, to_currency, date)
+
+    @classmethod
     def get_inflation_adjustment(cls, country_code: str, start_date: datetime, end_date: datetime) -> Decimal:
         """
         Calculate inflation adjustment coefficient for a period.

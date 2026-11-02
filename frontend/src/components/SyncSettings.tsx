@@ -5,8 +5,7 @@ import {
   Database, Zap, ToggleLeft, ToggleRight, 
   ExternalLink 
 } from 'lucide-react';
-import { apiFetch } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
+import apiV1, { apiFetch } from '../api/v1';
 
 interface ConnectionSyncInfo {
   id: number;
@@ -34,7 +33,6 @@ interface FullSyncStatus {
 }
 
 export function SyncSettings() {
-  const { token } = useAuth();
   const [status, setStatus] = useState<FullSyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -42,17 +40,16 @@ export function SyncSettings() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (!token) { setLoading(false); return; }
     fetchFullStatus();
     const interval = setInterval(fetchFullStatus, 15000); // Higher frequency for 'Live' feel
     return () => clearInterval(interval);
-  }, [token]);
+  }, []);
 
   const fetchFullStatus = async () => {
     try {
       const [sysRes, detailRes] = await Promise.all([
-        apiFetch('/br/sync/status', { token }),
-        apiFetch('/v1/sync-settings/status', { token })
+        apiFetch('/br/sync/status', { useAuth: true }),
+        apiFetch('/sync-settings/status', { useAuth: true })
       ]);
       
       if (sysRes.ok && detailRes.ok) {
@@ -64,10 +61,10 @@ export function SyncSettings() {
           wallets: detailData.wallets,
           exchanges: detailData.exchanges
         });
-        setLoading(false);
       }
     } catch (error) {
       console.error('Sync status fetch failed:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -75,9 +72,8 @@ export function SyncSettings() {
   const toggleAutoSync = async (type: 'wallet' | 'exchange', id: number, current: boolean) => {
     setActionLoading(`${type}-${id}`);
     try {
-      const res = await apiFetch(`/v1/sync-settings/${type}/${id}/auto-sync`, {
+      const res = await apiFetch(`/sync-settings/${type}/${id}/auto-sync`, {
         method: 'PATCH',
-        token,
         body: JSON.stringify({ enabled: !current })
       });
       if (res.ok) {
@@ -92,7 +88,7 @@ export function SyncSettings() {
     setManualSyncing(true);
     setMessage('');
     try {
-      const response = await apiFetch(endpoint, { method: 'POST', token });
+      const response = await apiFetch(endpoint, { method: 'POST' });
       if (response.ok) {
         setMessage(`✓ ${label} triggered successfully.`);
         setTimeout(fetchFullStatus, 2000);

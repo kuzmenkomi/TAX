@@ -5,7 +5,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { completeOnboarding } from '../api/client';
+import apiV1 from '../api/v1';
 import { ThemeToggle } from '../components/ThemeToggle';
 
 type OnboardingStep = 'country' | 'structure' | 'portfolio' | 'complete';
@@ -13,7 +13,7 @@ type OnboardingStep = 'country' | 'structure' | 'portfolio' | 'complete';
 export function OnboardingPage() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { token } = useAuth();
+  useAuth();
   const { addToast } = useToast();
   const [step, setStep] = useState<OnboardingStep>('country');
   const [country, setCountry] = useState('BR');
@@ -33,13 +33,12 @@ export function OnboardingPage() {
       setError(null);
       setIsEmailNotVerified(false);
       try {
-        if (!token) throw new Error('No auth token');
-        await completeOnboarding(token, country, taxStructure, portfolioSize);
+        await apiV1.auth.completeOnboarding(country, taxStructure, portfolioSize);
         addToast('Onboarding completed! 🎉', 'success', 3000);
         setStep('complete');
         localStorage.setItem('activeTab', 'dashboard');
         setTimeout(() => {
-          navigate('/app', { replace: true });
+          navigate('/dashboard', { replace: true });
         }, 2000);
       } catch (err) {
         const isEmailVerificationError = (err as any)?.isEmailNotVerified === true || 

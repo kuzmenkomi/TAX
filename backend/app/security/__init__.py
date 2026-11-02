@@ -1,7 +1,1 @@
-"""
-Security module - two-factor authentication and related utilities
-"""
-
-from app.security.two_factor_auth import *
-
-__all__ = []
+"""Security primitives (OTP, future WebAuthn, etc.) — not HTTP routes."""

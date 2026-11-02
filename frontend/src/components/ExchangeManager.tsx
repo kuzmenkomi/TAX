@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Trash2, RotateCw, Plus, Shield, ArrowRightLeft } from 'lucide-react';
-import { apiFetch } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
+import apiV1, { apiFetch } from '../api/v1';
 
 interface Exchange {
   id: string;
@@ -18,7 +17,6 @@ interface ConnectedExchange {
 }
 
 export function ExchangeManager() {
-  const { token } = useAuth();
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [connectedExchanges, setConnectedExchanges] = useState<ConnectedExchange[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +35,7 @@ export function ExchangeManager() {
     setConnecting(true);
     setMessage('');
     try {
-      const response = await apiFetch(`/oauth/${provider}/initiate`, { token });
+      const response = await apiFetch(`/oauth/${provider}/initiate`);
       if (response.ok) {
         const data = await response.json();
         // Save state to sessionStorage for verification after redirect
@@ -56,15 +54,14 @@ export function ExchangeManager() {
   };
 
   useEffect(() => {
-    if (!token) { setLoading(false); return; }
     loadExchanges();
-  }, [token]);
+  }, []);
 
   const loadExchanges = async () => {
     try {
-      const res1 = await apiFetch('/br/exchanges');
+      const res1 = await apiFetch('/br/exchanges', { useAuth: true });
       if (res1.ok) setExchanges(await res1.json());
-      const res2 = await apiFetch('/br/exchanges/my', { token });
+      const res2 = await apiFetch('/br/exchanges/my', { useAuth: true });
       if (res2.ok) setConnectedExchanges(await res2.json());
       setLoading(false);
     } catch {
@@ -82,7 +79,7 @@ export function ExchangeManager() {
     setMessage('');
     try {
       const response = await apiFetch('/br/exchange/connect', {
-        method: 'POST', token,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ exchange_name: selectedExchange, api_key: apiKey, api_secret: apiSecret, passphrase: passphrase || null, label: label || null }),
       });
@@ -104,9 +101,8 @@ export function ExchangeManager() {
   };
 
   const handleDisconnect = async (exchangeId: number, name: string) => {
-    if (!confirm(`Disconnect ${name}? Your API credentials will be deleted.`)) return;
     try {
-      const response = await apiFetch(`/br/exchange/${exchangeId}`, { method: 'DELETE', token });
+      const response = await apiFetch(`/br/exchange/${exchangeId}`, { method: 'DELETE' });
       if (response.ok) { setMessage(`✓ Disconnected ${name}`); await loadExchanges(); }
     } catch (error) {
       setMessage(`✗ Failed to disconnect: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -116,7 +112,7 @@ export function ExchangeManager() {
   const handleSync = async (exchangeId: number, name: string) => {
     setSyncing(true); setMessage('');
     try {
-      const response = await apiFetch(`/br/exchange/${exchangeId}/sync`, { method: 'POST', token });
+      const response = await apiFetch(`/br/exchange/${exchangeId}/sync`, { method: 'POST' });
       if (response.ok) {
         const data = await response.json();
         setMessage(`✓ Synced ${name}: ${data.transactions_found} transactions found`);
@@ -161,7 +157,7 @@ export function ExchangeManager() {
       {message && (
         <div className={`px-4 py-3 rounded-xl border animate-fade-in ${
           message.startsWith('✓')
-            ? 'bg-[#6af0c8]/10 text-[#6af0c8] border-[#6af0c8]/20'
+            ? 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20'
             : 'bg-danger/10 text-danger border-danger/20'
         }`}>
           <div className="flex items-center gap-2">
@@ -193,7 +189,7 @@ export function ExchangeManager() {
                         <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{ex.exchange_name}</p>
                         <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider ${
                           ex.status === 'synced' || ex.status === 'connected'
-                            ? 'bg-[#6af0c8]/10 text-[#6af0c8]'
+                            ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
                             : 'bg-warning/10 text-warning'
                         }`}>
                           {ex.status}

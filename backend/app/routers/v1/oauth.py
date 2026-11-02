@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 
 from app.auth import get_current_user
+from app.core.api_errors import bad_request_from_exc
 from app.core.db import get_db
 from app.models import User, ExchangeConnection
 from app.services.oauth import oauth_manager
@@ -11,6 +13,7 @@ from app.core.config import get_settings
 from app.core.security import encrypt_secret_if_needed
 from app.services.exchange_service import _ensure_portfolio
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/oauth", tags=["OAuth"])
 
 @router.get("/{provider}/initiate")
@@ -21,20 +24,7 @@ async def oauth_initiate(
     """Start the OAuth flow by generating the authorization URL."""
     mgr_provider = oauth_manager.get_provider(provider)
     settings = get_settings()
-    
-    # Generate redirect URI based on provider
-    redirect_uri = f"{settings.FRONTEND_URL}/oauth/callback?provider={provider}"
-    # Wait, the callback should usually hit the BACKEND first to exchange the code.
-    # But for a cleaner SPA experience, we can let the frontend handle the callback 
-    # and then POST the code to our backend.
-    # OR we hit the backend first. Let's do backend first for better security.
-    
-    backend_redirect_uri = f"{get_settings().FRONTEND_URL.replace('5173', '8000')}/api/v1/oauth/{provider}/callback"
-    # Actually, let's use a more robust way to get the backend URL or just let the frontend pass it.
-    # For now, let's assume the frontend will handle the landing and then call our API.
-    # Actually, hitting the backend directly for callback is more standard.
-    
-    # We'll use the frontend as the landing page to show a loading spinner, then it calls the backend.
+    # Frontend landing page shows a spinner, then POSTs the code to the backend.
     frontend_callback_url = f"{settings.FRONTEND_URL}/oauth/callback"
     
     state = oauth_manager.generate_state(current_user.id)
@@ -60,8 +50,9 @@ async def oauth_finalize(
     
     try:
         tokens = await mgr_provider.exchange_code(code, frontend_callback_url)
-        user_info = await mgr_provider.get_user_info(tokens.access_token)
-        
+        _user_info = await mgr_provider.get_user_info(tokens.access_token)
+        logger.debug("OAuth user info retrieved for %s: %s", provider, bool(_user_info))
+
         portfolio = _ensure_portfolio(db, current_user)
         
         # Check if connection already exists
@@ -97,5 +88,11 @@ async def oauth_finalize(
             "exchange_name": conn.exchange_name,
             "id": conn.id
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise bad_request_from_exc(
+            logger,
+            e,
+            public_message="Unable to complete OAuth. Please try again.",
+        ) from e

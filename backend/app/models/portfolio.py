@@ -21,6 +21,9 @@ class Portfolio(Base):
     tax_structure = Column(String(32), nullable=True)
     portfolio_size = Column(String(32), nullable=True)
     is_onboarded = Column(Boolean, nullable=False, default=False)
+    geo_jurisdiction_applied = Column(Boolean, nullable=False, default=False)
+    country_locked = Column(Boolean, nullable=False, default=False)
+    jurisdiction_source = Column(String(16), nullable=True)  # cloudflare | user | default
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="portfolios")

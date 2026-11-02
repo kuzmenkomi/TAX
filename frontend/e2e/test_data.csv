@@ -1,0 +1,3 @@
+timestamp,type,asset,amount,price,fee,fee_asset,from_wallet,to_wallet
+2024-01-01 12:00:00,BUY,BTC,0.1,40000,10,USD,,
+2024-02-01 12:00:00,SELL,BTC,0.05,50000,10,USD,,

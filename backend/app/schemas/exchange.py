@@ -26,6 +26,9 @@ class ExchangeConnectionResponse(BaseModel):
     label: Optional[str]
     status: str
     last_synced: Optional[datetime]
+    last_sync_at: Optional[datetime] = None   # alias for frontend compatibility
+    transaction_count: int = 0
+    balance: float = 0.0
 
     model_config = {"from_attributes": True}
 

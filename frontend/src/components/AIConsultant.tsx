@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import { apiFetch } from '../api/v1';
 
 interface ChatMessage {
   id: string;
@@ -71,9 +72,7 @@ export function AIConsultant() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/v1/ai/presets', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
+        const res = await apiFetch('/ai/presets');
         if (res.ok) {
           const data = await res.json();
           setPresets(data.presets || FALLBACK_PRESETS);
@@ -85,9 +84,7 @@ export function AIConsultant() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/v1/ai/provider-info', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
+        const res = await apiFetch('/ai/provider-info');
         if (res.ok) setProviderInfo(await res.json());
       } catch { /* ignore */ }
     })();
@@ -107,12 +104,8 @@ export function AIConsultant() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/ai/ask', {
+      const res = await apiFetch('/ai/ask', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
         body: JSON.stringify({
           question: question.trim(),
           run_id: runId,
@@ -182,7 +175,7 @@ export function AIConsultant() {
             <div className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--text3)' }}>
               {providerInfo ? (
                 <>
-                  <span className={`w-1.5 h-1.5 rounded-full ${providerInfo.available ? 'bg-[#6af0c8]' : 'bg-[#f06a6a]'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${providerInfo.available ? 'bg-[var(--accent)]' : 'bg-[#f06a6a]'}`} />
                   Provider: <strong style={{ color: 'var(--text2)' }}>{providerInfo.provider}</strong>
                   {providerInfo.provider === 'mock' && (
                     <span className="text-[#f0a86a]">(Free mode)</span>

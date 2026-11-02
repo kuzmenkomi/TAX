@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.routers.v1.analysis import router as analysis_router
 from app.routers.v1.auth import router as auth_router
+from app.routers.v1.social_auth import router as social_auth_router
 from app.routers.v1.defi import router as defi_router
 from app.routers.v1.exchange import router as exchange_router
 from app.routers.v1.exports import router as exports_router
@@ -22,9 +23,18 @@ from app.routers.v1.sse import router as sse_router
 from app.routers.v1.plugins import router as plugins_router
 from app.routers.v1.oauth import router as oauth_router
 from app.routers.v1.accounting import router as accounting_router
+from app.routers.v1.billing import router as billing_router
+from app.routers.v1.bank_import import router as bank_import_router
+from app.routers.v1.analytics import router as analytics_router
+from app.routers.v1.support import router as support_router
+from app.routers.v1.two_factor import router as two_factor_router
+from app.routers.v1.support_impersonation import router as support_impersonation_router
 
 router = APIRouter()
+router.include_router(social_auth_router)  # Social OAuth — must come before auth_router
 router.include_router(auth_router)
+router.include_router(two_factor_router)
+router.include_router(support_impersonation_router)
 router.include_router(portfolio_router)
 router.include_router(exchange_router)
 router.include_router(wallet_router)
@@ -44,5 +54,9 @@ router.include_router(sse_router)
 router.include_router(plugins_router)
 router.include_router(oauth_router)
 router.include_router(accounting_router)
+router.include_router(billing_router)
+router.include_router(bank_import_router)
+router.include_router(analytics_router)
+router.include_router(support_router)
 
 __all__ = ["router"]

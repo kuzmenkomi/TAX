@@ -55,6 +55,7 @@ from app.countries.uy.config import Uruguay
 from app.countries.cr.config import CostaRica
 from app.countries.hn.config import Honduras
 from app.countries.bo.config import Bolivia
+from app.countries.us.config import UnitedStates
 
 # ============== AUTO-REGISTER ALL COUNTRIES ==============
 # Plugin pattern: no if/elif chains, pure registry
@@ -70,6 +71,7 @@ CountryRegistry.register(Uruguay)
 CountryRegistry.register(CostaRica)
 CountryRegistry.register(Honduras)
 CountryRegistry.register(Bolivia)
+CountryRegistry.register(UnitedStates)
 # from app.countries.cr.config import CostaRica
 # from app.countries.hn.config import Honduras
 # CountryRegistry.register(Ecuador)

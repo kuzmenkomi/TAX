@@ -11,8 +11,8 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Path, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_
 
+from app.core.api_errors import server_error
 from app.core.db import get_db
 from app.auth import get_current_user
 from app.models.user import User
@@ -57,12 +57,6 @@ router = APIRouter(prefix="/tlh", tags=["TLH"])
 # DEPENDENCIES
 # ============================================================================
 
-async def get_current_user_id() -> str:
-    """Get current user ID from auth context"""
-    # TODO: Implement real auth
-    return "test_user"
-
-
 def get_tlh_scanner(db: Session = Depends(get_db)):
     """Get TLH scanner instance"""
     if TLHEngine is None:
@@ -102,7 +96,7 @@ def scan_portfolio(
         )
     except Exception as e:
         logger.error(f"Scan failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 @router.get("/opportunities", response_model=list[TLHOpportunityResponse])
@@ -131,7 +125,7 @@ def list_opportunities(
         return opportunities
     except Exception as e:
         logger.error(f"List opportunities failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 @router.get("/opportunities/{opportunity_id}", response_model=TLHOpportunityResponse)
@@ -156,7 +150,7 @@ def get_opportunity(
         raise
     except Exception as e:
         logger.error(f"Get opportunity failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================
@@ -195,7 +189,7 @@ def create_opportunity(
     except Exception as e:
         db.rollback()
         logger.error(f"Create opportunity failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 @router.put("/opportunities/{opportunity_id}", response_model=TLHOpportunityResponse)
@@ -234,7 +228,7 @@ def update_opportunity(
     except Exception as e:
         db.rollback()
         logger.error(f"Update opportunity failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 @router.delete("/opportunities/{opportunity_id}")
@@ -263,7 +257,7 @@ def delete_opportunity(
     except Exception as e:
         db.rollback()
         logger.error(f"Delete opportunity failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================
@@ -334,7 +328,7 @@ def execute_opportunity(
     except Exception as e:
         db.rollback()
         logger.error(f"Execute opportunity failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 @router.post("/bulk-execute", response_model=BulkExecuteResponse)
@@ -429,7 +423,7 @@ def bulk_execute(
     except Exception as e:
         db.rollback()
         logger.error(f"Bulk execute failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================
@@ -464,7 +458,7 @@ def get_execution_history(
         raise
     except Exception as e:
         logger.error(f"Get history failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================
@@ -495,7 +489,7 @@ def get_price_events(
         return events
     except Exception as e:
         logger.error(f"Get events failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================
@@ -525,7 +519,11 @@ def get_tlh_metrics(
         ])
         failed = sum(1 for o in opportunities if o.status == RecommendationStatus.FAILED.value)
         success_rate = executed / (executed + failed) if (executed + failed) > 0 else 0
-        avg_fees = sum(o.fees_paid for o in opportunities if o.fees_paid) / len([o for o in opportunities if o.fees_paid]) if opportunities else 0
+        opps_with_fees = [o for o in opportunities if o.fees_paid]
+        avg_fees = (
+            sum(o.fees_paid for o in opps_with_fees) / len(opps_with_fees)
+            if opps_with_fees else Decimal(0)
+        )
         
         return TLHMetrics(
             total_harvestable_losses=total_loss,
@@ -539,7 +537,7 @@ def get_tlh_metrics(
         )
     except Exception as e:
         logger.error(f"Get metrics failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e)
 
 
 # ============================================================================

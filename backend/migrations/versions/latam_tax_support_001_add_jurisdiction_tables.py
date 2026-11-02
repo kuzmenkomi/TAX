@@ -91,7 +91,7 @@ def upgrade() -> None:
     op.create_table(
         'user_tax_profiles',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('jurisdiction_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('tax_id', sa.String(length=50), nullable=True),
         sa.Column('tax_payer_name', sa.String(length=255), nullable=True),

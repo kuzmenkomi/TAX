@@ -1,0 +1,25 @@
+[run]
+source = app
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    */phase10_integration.py
+    */worker.py
+    */task_manager.py
+    */tamper_audit.py
+    */transaction_service.py
+    */report_service.py
+    */audit_service.py
+    */security/*
+    */accounting/calculator.py
+    */magic_repair.py
+    */quality/normalizer.py
+    */reporter.py
+    */schemas/phase10.py
+    */tax/br_compliance.py
+    */integrations/exchange_ccxt_adapter.py
+
+[report]
+precision = 2
+skip_covered = true

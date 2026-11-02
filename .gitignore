@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
+!.env.staging.example
 backend/.env
 backend/.env.*
 frontend/.env
@@ -30,7 +32,7 @@ env/
 ENV/
 bin/
 lib64/
-lib/
+/lib/
 include/
 share/
 spec/
@@ -65,3 +67,45 @@ Thumbs.db
 # Docker
 .docker/
 docker-compose.override.yml
+
+# Private certificates and credentials
+/nginx/ssl/
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.pypirc
+.netrc
+.aws/
+
+# Local data, backups and generated reports
+/backups/
+/data/
+/backend/exports_cache/
+/log/
+/backend/log/
+/output/
+/backend/scratch/
+*.log
+*.db-*
+*.db.bak
+*.sqlite*
+*.dump
+*.sql
+
+# Browser test artifacts
+/frontend/playwright-report/
+/frontend/test-results/
+
+# Local transaction imports
+/binance_test.csv
+/test.csv
+/tmp_binance_sample.csv
+
+# Generated test and tool artifacts
+.pytest_basetemp/
+.pytest_tmp_run/
+.ruff_cache/
+/frontend/coverage/
+*.tsbuildinfo

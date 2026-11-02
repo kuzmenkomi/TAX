@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle, Loader2, Mail, Lock, ShieldCheck } from 'lucide-react';
-import { resetPassword, requestPasswordReset } from '../api/client';
+import apiV1 from '../api/v1';
 import { useI18n } from '../i18n/I18nContext';
 import { useToast } from '../context/ToastContext';
 import { AuthLayout } from '../components/AuthLayout';
@@ -32,7 +32,7 @@ export function PasswordResetPage() {
 
     setLoading(true);
     try {
-      await requestPasswordReset(email);
+      await apiV1.auth.requestPasswordReset(email);
       setSuccess(true);
       addToast('Check your email for reset instructions', 'success', 5000);
       
@@ -74,7 +74,7 @@ export function PasswordResetPage() {
 
     setLoading(true);
     try {
-      await resetPassword(resetToken, password);
+      await apiV1.auth.resetPassword(resetToken, password);
       setSuccess(true);
       addToast('Password reset successful! Please login.', 'success', 5000);
       

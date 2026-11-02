@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_email_verified
 from app.core.db import get_db
 from app.models import ExchangeConnection
 from app.models import User
@@ -13,19 +13,27 @@ from app.schemas.exchange import (
     ExchangeListItem,
     ExchangeRegisterRequest,
 )
-from app.services import exchange_service
+from app.services import exchange_service, billing_service
 from app.services.portfolio_service import get_or_create_portfolio
 
 router = APIRouter(tags=["exchange"])
 
 
-def _serialize_exchange(connection) -> ExchangeConnectionResponse:
+def _serialize_exchange(connection, db: Session | None = None) -> ExchangeConnectionResponse:
+    from app.services.exchange_service import count_exchange_transactions
+
+    tx_count = count_exchange_transactions(db, connection) if db is not None else 0
+
+    last_sync = connection.last_synced_at or connection.updated_at
     return ExchangeConnectionResponse(
         id=connection.id,
         exchange_name=connection.exchange_name or connection.provider,
         label=connection.label,
         status=connection.status,
-        last_synced=connection.updated_at,
+        last_synced=last_sync,
+        last_sync_at=last_sync,
+        transaction_count=tx_count,
+        balance=0.0,  # balance not stored per-connection; future: pull from portfolio
     )
 
 
@@ -48,9 +56,10 @@ def list_supported_exchanges() -> list[ExchangeListItem]:
 @router.post("/br/exchange")
 def register_exchange(
     body: ExchangeRegisterRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_email_verified),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
+    billing_service.check_limit(db, current_user.id, "exchanges")
     portfolio = get_or_create_portfolio(db, current_user)
     row = ExchangeConnection(
         user_id=current_user.id,
@@ -69,9 +78,10 @@ def register_exchange(
 @router.post("/br/exchange/connect", response_model=ExchangeConnectionResponse)
 def connect_exchange(
     body: ExchangeConnectRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_email_verified),
     db: Session = Depends(get_db),
 ) -> ExchangeConnectionResponse:
+    billing_service.check_limit(db, current_user.id, "exchanges")
     connection = exchange_service.connect_exchange(
         db,
         current_user,
@@ -90,7 +100,7 @@ def list_my_exchanges(
     db: Session = Depends(get_db),
 ) -> list[ExchangeConnectionResponse]:
     return [
-        _serialize_exchange(connection)
+        _serialize_exchange(connection, db)
         for connection in exchange_service.get_user_exchanges(db, current_user)
     ]
 

@@ -1,135 +1,217 @@
-import { Search, Bell, Plus, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {
+  Bell,
+  Plus,
+  LogOut,
+  Settings,
+  Menu,
+  X,
+  Eye,
+  EyeOff,
+  LayoutDashboard,
+  Receipt,
+  Percent,
+  AlertCircle,
+  Bot,
+  Link as LinkIcon,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../i18n/I18nContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeToggle } from './ThemeToggle';
+import { useTheme } from '../context/ThemeContext';
+import { cn } from '../utils/cn';
+import { SupportImpersonationStrip } from './SupportImpersonationStrip';
+import { useAppContext } from '../context/AppContext';
+import apiV1 from '../api/v1';
 
 interface HeaderProps {
   children?: React.ReactNode;
-  setActiveTab?: (tab: string) => void;
+  setActiveTab?: (tab: string, subTab?: any) => void;
+  sidebarCollapsed?: boolean;
+  setSidebarCollapsed?: (v: boolean) => void;
+  mobileSidebarOpen?: boolean;
+  setMobileSidebarOpen?: (v: boolean) => void;
+  activeTab?: string;
 }
 
-export function Header({ children, setActiveTab }: HeaderProps) {
+export function Header({
+  children,
+  setActiveTab,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  mobileSidebarOpen,
+  setMobileSidebarOpen,
+  activeTab,
+}: HeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const { backendOnline, dataVersion, isPrivacyMode, togglePrivacyMode } = useAppContext();
+  const [txCount, setTxCount] = useState(0);
+
+  const userInitials = user?.email?.slice(0, 2).toUpperCase() || 'TE';
+  const userName = useMemo(() => {
+    const local = user?.email?.split('@')[0] || 'Test';
+    return local.charAt(0).toUpperCase() + local.slice(1);
+  }, [user?.email]);
+
+  useEffect(() => {
+    if (!backendOnline) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const txs = await apiV1.wallet.getTransactions(undefined, 10000);
+        if (!cancelled) setTxCount(txs.length);
+      } catch {
+        if (!cancelled) setTxCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [backendOnline, dataVersion]);
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'integrations', label: 'Connections', icon: LinkIcon },
+    { id: 'transactions', label: 'Transactions', icon: Receipt, badge: txCount > 0 ? txCount : undefined },
+    { id: 'tax', label: 'Tax Center', icon: Percent },
+    { id: 'health', label: 'Audit & Issues', icon: AlertCircle },
+    { id: 'ai', label: 'AI Fiscal Advisor', icon: Bot, badgeLabel: 'SOON', disabled: true },
+  ];
 
   return (
     <header
-      className="h-16 border-b flex items-center z-[100] fixed top-0 left-0 right-0 transition-all duration-300 backdrop-blur-md"
-      style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}
+      className="flex flex-col z-[100] fixed top-0 left-0 right-0 transition-all duration-300 backdrop-blur-md border-b"
+      style={{ background: 'var(--nav-bg)', borderColor: 'var(--border)' }}
     >
-      {/* Logo — updated width to match new sidebar (240px) */}
-      <div
-        className="w-[240px] flex-shrink-0 flex items-center gap-3 px-6 h-full border-r"
+      <SupportImpersonationStrip />
+      <div className="flex h-[56px] md:h-[50px] w-full items-center">
+      {/* Mobile Menu Toggle (Left side) */}
+      <div className="flex items-center pl-3 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileSidebarOpen?.(!mobileSidebarOpen)}
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--text)] transition-all hover:bg-[var(--accent-dim)]"
+          aria-label={mobileSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      {/* Logo Area */}
+      <div 
+        className={cn(
+          "h-full flex items-center transition-all duration-300 overflow-hidden md:border-r",
+          sidebarCollapsed ? "md:w-[64px] md:px-4 pl-1 pr-4" : "md:w-[212px] md:px-6 pl-1 pr-4"
+        )} 
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className="w-2.5 h-2.5 rounded-full bg-brand-green-500 shadow-[0_0_12px_var(--accent)] animate-pulse" />
-        <span className="font-syne font-black text-lg tracking-tight" style={{ color: 'var(--text)' }}>Declairo</span>
+        <Link to="/dashboard" className="flex items-center gap-2.5 no-underline hover:opacity-80 transition-all flex-shrink-0">
+          <img 
+            src="/logo.webp" 
+            alt="Declairo Logo" 
+            className="w-8 h-8 object-contain" 
+          />
+          <span className={cn(
+            "font-syne font-extrabold text-[17px] tracking-tight text-[var(--text)] whitespace-nowrap",
+            sidebarCollapsed ? "hidden" : "block"
+          )}>
+            Declairo
+          </span>
+        </Link>
       </div>
 
-      {/* Global Search Interface */}
-      <div className="flex items-center gap-6 flex-1 px-8">
-        <div className="relative w-full max-w-[420px] group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-all opacity-40 group-focus-within:opacity-100 group-focus-within:text-brand-green-500" style={{ color: 'var(--text)' }} />
-          <input
-            type="text"
-            placeholder="Search commands, wallets or audit trails…"
-            className="w-full pl-11 pr-5 py-2.5 border rounded-2xl text-[13px] font-bold focus:outline-none focus:border-brand-green-500 transition-all shadow-sm"
-            style={{
-              background: 'var(--bg2)',
-              borderColor: 'var(--border)',
-              color: 'var(--text)',
-            }}
-          />
-        </div>
-      </div>
+      {/* Spacer where search was */}
+      <div className="flex-1" />
 
       {/* Action Suite */}
-      <div className="flex items-center gap-4 pr-6">
-        {/* Dynamic Context (Jurisdiction) */}
-        <div className="hidden lg:block">
-          {children}
-        </div>
+      <div className="flex items-center gap-[8px] pr-[14px] md:pr-[20px]">
 
-        <button 
-          onClick={() => setActiveTab?.('wallets')}
-          className="flex items-center gap-2 bg-brand-green-500 text-brand-dark px-5 py-2.5 rounded-2xl text-[12px] font-black transition-all shadow-xl shadow-brand-green-500/10 hover:bg-brand-green-400 active:scale-95"
+        <button
+          onClick={() => setActiveTab?.('integrations')}
+          className="hidden md:flex bg-[var(--accent)] hover:brightness-95 text-white px-[13px] py-[6px] rounded-[7px] font-bold text-[11px] tracking-[0.3px] transition-all active:scale-95 items-center gap-2 shadow-[0_2px_6px_rgba(16,185,129,0.3)]"
         >
-          <Plus className="w-4 h-4 stroke-[3px]" />
+          <Plus size={14} strokeWidth={3} />
           CONNECT DATA
         </button>
 
-        <div className="h-6 w-[1px] mx-2" style={{ background: 'var(--border)' }} />
+        <div className="hidden md:block w-[1px] h-[18px] bg-[var(--border)] mx-[4px]" />
 
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-[8px]">
           <LanguageSwitcher />
           <ThemeToggle />
-          
-          <button 
-            onClick={() => setActiveTab?.('issues')}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all relative group border hover:border-brand-green-500/50"
-            style={{
-              color: 'var(--text2)',
-              borderColor: 'var(--border)',
-              background: 'var(--bg2)'
-            }}
+
+          <button
+            onClick={() => setActiveTab?.('health', 'issues')}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--accent-dim)] text-[var(--text2)] transition-all"
           >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-3 right-3 w-1.5 h-1.5 bg-brand-green-500 rounded-full shadow-[0_0_8px_var(--accent)]"></span>
+            <Bell size={16} />
           </button>
 
-          {/* User Profile Cluster */}
-          <div className="relative group ml-1">
-            {/* The invisible landing gear bridge to prevent losing hover */}
-            <div className="absolute top-0 right-0 w-full h-[140%] pointer-events-auto z-[-1]" />
-            
-            <button
-              className="flex items-center gap-3 p-1.5 pl-1.5 pr-4 border rounded-2xl transition-all hover:border-brand-green-500/50 shadow-sm"
-              style={{
-                background: 'var(--bg2)',
-                borderColor: 'var(--border)',
-              }}
-            >
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-green-500 to-accent flex items-center justify-center font-syne text-[11px] font-black text-brand-dark shadow-inner">
-                {user?.email?.slice(0, 2).toUpperCase() || 'TF'}
+          {/* User Profile Cluster (Condensed version as most info is now in sidebar) */}
+          <div className="relative group ml-[4px]">
+              <div className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-[var(--accent-dim)] transition-all cursor-pointer">
+                <div className="w-[30px] h-[30px] rounded-lg bg-gradient-to-br from-[#0077ff] to-[var(--accent)] flex items-center justify-center font-extrabold text-[10px] text-black shadow-lg">
+                {userInitials}
+                </div>
               </div>
-              <div className="flex flex-col items-start leading-none">
-                <span className="text-[12px] font-black tracking-tight" style={{ color: 'var(--text)' }}>
-                  {user?.email?.split('@')[0]}
-                </span>
-                <span className="text-[9px] font-bold opacity-40 uppercase tracking-widest" style={{ color: 'var(--text)' }}>
-                  Active Agent
-                </span>
-              </div>
-            </button>
-            
-            {/* Expanded User Menu */}
-            <div className="absolute top-full left-0 w-full opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 z-[120] pt-2">
+
+            {/* User Dropdown */}
+            <div className="absolute top-full right-0 opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 z-[120] pt-2">
               <div
-                className="border rounded-2xl p-1.5 overflow-hidden"
-                style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--card-shadow)' }}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-[6px] overflow-hidden min-w-[180px] shadow-[var(--card-shadow)]"
               >
-                <div className="px-3 py-2.5 border-b mb-1" style={{ borderColor: 'var(--border)' }}>
-                   <p className="text-[8px] font-black opacity-40 uppercase tracking-widest mb-0.5" style={{ color: 'var(--text)' }}>Session</p>
-                   <p className="text-[10px] font-bold truncate opacity-80" style={{ color: 'var(--text)' }}>{user?.email}</p>
+                <div className="px-[12px] py-[10px] border-b border-[var(--border)] mb-[4px]">
+                  <p className="text-[9px] font-extrabold text-[var(--text3)] uppercase tracking-[1.5px] mb-[2px]">Account</p>
+                  <p className="text-[11px] font-bold text-[var(--text)] truncate">{user?.email}</p>
                 </div>
                 <button
-                  onClick={() => {
-                    logout();
-                    navigate('/', { replace: true });
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[10px] font-black text-danger hover:bg-danger/10 transition-all group/exit"
+                  onClick={() => setActiveTab?.('settings')}
+                  className="w-full flex items-center gap-[8px] px-[12px] py-[10px] rounded-[9px] text-[11px] font-bold text-[var(--text2)] hover:bg-[var(--accent-dim)] hover:text-[var(--text)] transition-all"
                 >
-                  <LogOut className="w-3.5 h-3.5 transition-transform group-hover/exit:translate-x-1" />
+                  <Settings size={14} />
+                  SETTINGS
+                </button>
+                <button
+                  onClick={() => {
+                    void logout().then(() => navigate('/', { replace: true }));
+                  }}
+                  className="w-full flex items-center gap-[8px] px-[12px] py-[10px] rounded-[9px] text-[11px] font-extrabold text-[var(--red)] hover:bg-[rgba(255,77,106,0.1)] transition-all group/exit"
+                >
+                  <LogOut className="w-[14px] h-[14px] transition-transform group-hover/exit:translate-x-1" />
                   SIGN OUT
                 </button>
               </div>
             </div>
           </div>
         </div>
+
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            type="button"
+            onClick={togglePrivacyMode}
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--text2)] transition-all hover:bg-[var(--accent-dim)]"
+            aria-label={isPrivacyMode ? 'Show balances' : 'Hide balances'}
+          >
+            {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab?.('health', 'issues')}
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--text2)] transition-all hover:bg-[var(--accent-dim)]"
+            aria-label="Notifications"
+          >
+            <Bell size={18} />
+          </button>
+        </div>
       </div>
+      </div>
+
+
     </header>
   );
 }

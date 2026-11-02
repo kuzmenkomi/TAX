@@ -293,6 +293,15 @@ def get_supported_exchanges() -> list[dict[str, str]]:
         {'id': 'gemini', 'name': 'Gemini', 'tier': 4},
         {'id': 'poloniex', 'name': 'Poloniex', 'tier': 4},
         {'id': 'hitbtc', 'name': 'HitBTC', 'tier': 4},
+        
+        # LATAM Regional Stars
+        {'id': 'bitso', 'name': 'Bitso (MX/BR/AR/CO)', 'tier': 1},
+        {'id': 'mercadobitcoin', 'name': 'Mercado Bitcoin (BR)', 'tier': 1},
+        {'id': 'buda', 'name': 'Buda.com (CL/CO/PE)', 'tier': 2},
+        {'id': 'foxbit', 'name': 'Foxbit (BR)', 'tier': 2},
+        {'id': 'novadax', 'name': 'NovaDAX (BR)', 'tier': 2},
+        {'id': 'ripio', 'name': 'Ripio (AR/BR)', 'tier': 3},
+        {'id': 'cryptomkt', 'name': 'CryptoMKT (CL)', 'tier': 3},
     ]
     
     return exchanges

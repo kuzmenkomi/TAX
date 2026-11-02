@@ -69,6 +69,8 @@ def run_tax_pipeline(
     normalized = add_p2p_flags(normalized)
     price_svc = PriceService(quote_currency=quote_currency, use_ptax=use_ptax)
     normalized = fill_missing_prices(normalized, price_svc)
+    from app.accounting.price_fill import add_synthetic_opening_balances
+    normalized = add_synthetic_opening_balances(normalized, price_svc)
     normalized, dedup_info = deduplicate_transactions(normalized)
     
     # 2. Recognize DeFi Protocols (LP, Lending, Staking)
@@ -134,6 +136,44 @@ def run_tax_pipeline(
     )
     
     monthly_sales_brl = compute_monthly_sales_brl(normalized)
+    
+    # Calculate monthly realized gains, losses, and taxes
+    from datetime import datetime
+    monthly_gains = {}
+    monthly_losses = {}
+    
+    lot_matches = pnl.get("lot_matches", [])
+    for match in lot_matches:
+        ts = match.get("sell_timestamp")
+        if not ts:
+            continue
+        if not isinstance(ts, datetime):
+            try:
+                ts = pd.Timestamp(ts).to_pydatetime()
+            except Exception:
+                continue
+        ym = ts.strftime("%Y-%m")
+        gain_loss = float(match.get("gain_loss", 0.0) or 0.0)
+        
+        if gain_loss > 0:
+            monthly_gains[ym] = monthly_gains.get(ym, 0.0) + gain_loss
+        else:
+            monthly_losses[ym] = monthly_losses.get(ym, 0.0) + abs(gain_loss)
+            
+    from app.accounting.tax_estimate import compute_tax_liability
+
+    total_tax, monthly_tax_owed = compute_tax_liability(
+        country=country_norm.upper(),
+        monthly_gains=monthly_gains,
+        monthly_losses=monthly_losses,
+        monthly_sales_brl=monthly_sales_brl,
+    )
+
+    pnl["monthly_gains"] = monthly_gains
+    pnl["monthly_losses"] = monthly_losses
+    pnl["monthly_tax_owed"] = monthly_tax_owed
+    pnl["total_tax_owed_usd"] = float(total_tax)
+    
     darf = compute_darf_projection(pnl, monthly_sales_brl)
     offshore_onshore = compute_offshore_onshore_tax_summary(normalized, pnl, monthly_sales_brl)
     tax_savings = build_tax_savings_opportunities(normalized)

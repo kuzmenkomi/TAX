@@ -322,7 +322,7 @@ class SATClient(BaseTaxAuthorityClient):
         # In production: make actual HTTPS request to SAT endpoint
         # For now: generate simulated SAT folio
         folio_data = f"SAT-{self.rfc}-{tax_year}-{datetime.utcnow().timestamp()}"
-        folio = hashlib.md5(folio_data.encode()).hexdigest()[:12].upper()
+        folio = hashlib.md5(folio_data.encode(), usedforsecurity=False).hexdigest()[:12].upper()
         return f"SAT{folio}"
     
     def _query_filing_status(self, folio: str) -> Dict[str, Any]:

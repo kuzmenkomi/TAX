@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest --config vitest.config.mjs --configLoader native --pool threads --maxWorkers 1",
+    "test:coverage": "vitest --config vitest.config.mjs --configLoader native --pool threads --maxWorkers 1 --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.10",
@@ -19,18 +22,23 @@
     "react-router-dom": "^7.14.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^3.4.0",
-    "viem": "^2.48.1",
+    "viem": "^2.x",
     "wagmi": "^2.19.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "4.1.17",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "@vitest/ui": "^3.1.0",
+    "jsdom": "^26.0.0",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.2.4",
-    "vite-plugin-singlefile": "2.3.0"
+    "vitest": "^3.1.0"
   }
 }

@@ -1,8 +1,10 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useI18n } from '../i18n/I18nContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeToggle } from './ThemeToggle';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../auth/AuthContext';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -14,6 +16,12 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   const { t } = useI18n();
   const location = useLocation();
   const isLogin = location.pathname === '/login';
+  const { theme } = useTheme();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col relative z-10 transition-colors duration-300" style={{ background: 'var(--bg)' }}>
@@ -23,7 +31,11 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
         style={{ borderColor: 'var(--border)', background: 'var(--nav-bg)' }}
       >
         <Link to="/" className="flex items-center gap-2 no-underline font-syne font-extrabold text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: 'var(--text)' }}>
-          <div className="w-2 h-2 rounded-full bg-brand-green-500 shadow-[0_0_10px_var(--accent)]" />
+          <img 
+            src="/logo-universal.webp" 
+            alt="Declairo Logo" 
+            className="w-8 h-8 object-contain" 
+          />
           Declairo
         </Link>
         <div className="flex items-center gap-4">

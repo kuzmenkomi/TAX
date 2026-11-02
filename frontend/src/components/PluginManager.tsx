@@ -93,7 +93,7 @@ export function PluginManager() {
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center text-accent">
-                      <puzzle size={24} />
+                      <Puzzle size={24} />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text)' }}>

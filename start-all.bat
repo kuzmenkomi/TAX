@@ -5,13 +5,13 @@ echo ========================================
 
 echo.
 echo [1/2] Запуск Backend (порт 8000)...
-start "Tax Backend" cmd /k "cd /d C:\Users\kuzme\Tax\backend && C:\Users\kuzme\Tax\.venv\Scripts\python -m uvicorn app.api.server:app --host 127.0.0.1 --port 8000 --reload"
+start "Tax Backend" cmd /k "cd /d "%~dp0backend" && ..\.venv\Scripts\python -m uvicorn app.api.server:app --host 127.0.0.1 --port 8000 --reload"
 
 timeout /t 3 /nobreak >nul
 
 echo.
 echo [2/2] Запуск Frontend...
-start "Tax Frontend" cmd /k "cd /d C:\Users\kuzme\Tax\frontend && npm run dev"
+start "Tax Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 
 echo.
 echo ========================================

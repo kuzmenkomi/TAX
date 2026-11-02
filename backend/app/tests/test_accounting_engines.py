@@ -587,6 +587,69 @@ class TestUnrealizedPnl:
         assert positions[0]["asset"] == "BTC"
         assert positions[1]["asset"] == "ETH"
 
+    def test_binance_usdt_fee_does_not_inflate_cost_basis(self):
+        """USDT-denominated fees must not be multiplied by the asset spot price."""
+        positions = self._run(
+            [
+                {
+                    "type": "BUY",
+                    "asset": "BTC",
+                    "amount": 0.0015,
+                    "price": 65430.25,
+                    "total_value": 98.15,
+                    "fee": 0.09814538,
+                    "timestamp": "2024-03-15",
+                },
+                {
+                    "type": "BUY",
+                    "asset": "ETH",
+                    "amount": 0.1,
+                    "price": 3500.0,
+                    "total_value": 350.0,
+                    "fee": 0.0001,
+                    "fee_asset": "ETH",
+                    "timestamp": "2024-03-16",
+                },
+                {
+                    "type": "SELL",
+                    "asset": "BTC",
+                    "amount": 0.001,
+                    "price": 68200.5,
+                    "total_value": 68.2,
+                    "fee": 0.06820050,
+                    "timestamp": "2024-03-18",
+                },
+                {
+                    "type": "BUY",
+                    "asset": "SOL",
+                    "amount": 5.0,
+                    "price": 145.1,
+                    "total_value": 725.5,
+                    "fee": 0.005,
+                    "fee_asset": "SOL",
+                    "timestamp": "2024-03-20",
+                },
+                {
+                    "type": "SELL",
+                    "asset": "ETH",
+                    "amount": 0.05,
+                    "price": 3850.2,
+                    "total_value": 192.51,
+                    "fee": 0.19251000,
+                    "timestamp": "2024-03-22",
+                },
+            ],
+            {"btc": 68200.5, "eth": 3850.2, "sol": 145.10},
+        )
+        total_cost = sum(p["cost_basis_usd"] for p in positions)
+        total_value = sum(p["current_value_usd"] for p in positions)
+        # Values verified against corrected _sell_proceeds logic (fees resolved via _resolve_fee_asset):
+        # BTC: 0.0005 * 65433.33 = 32.72, ETH: 0.05 * 3500 = 175, SOL: 5.0 * 145.1 = 725.5 → total ≈ 933.2
+        assert total_cost == pytest.approx(933.22, rel=0.01)
+        # current_value: BTC=0.0005*68200.5=34.1, ETH=0.05*3850.2=192.51, SOL=5.0*145.1=725.5 → ≈952.1
+        assert total_value == pytest.approx(952.11, rel=0.01)
+        assert total_value - total_cost == pytest.approx(18.89, rel=0.05)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PART 5: CROSS-ENGINE CONSISTENCY

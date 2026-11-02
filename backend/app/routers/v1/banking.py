@@ -1,26 +1,30 @@
 """
 Open Banking API Router
-6+ endpoints for bank account management and transaction matching
+Endpoints for bank account management and transaction matching.
 """
 
-import uuid
+from __future__ import annotations
+
 import logging
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from sqlalchemy import and_, select
+from sqlalchemy.orm import Session
 
+from app.auth import get_current_user
+from app.core.api_errors import server_error
 from app.core.db import get_db
 from app.models import (
     BankAccount,
     BankTransaction,
-    TransactionMatch,
     CryptoWithdrawal,
+    TransactionMatch,
     BankType,
-    BankTransactionType,
+    User,
 )
 from app.schemas.tlh_schemas import (
     BankAccountConnect,
@@ -28,12 +32,10 @@ from app.schemas.tlh_schemas import (
     BankAccountSyncRequest,
     BankAccountSyncResponse,
     BankTransactionResponse,
-    BankTransactionsFilterRequest,
-    TransactionMatchRequest,
-    TransactionMatchResponse,
     TransactionMatchAutoRequest,
     TransactionMatchAutoResponse,
-    CryptoWithdrawalResponse,
+    TransactionMatchRequest,
+    TransactionMatchResponse,
     CompleteCycleDashboard,
     BankingMetrics,
 )
@@ -42,45 +44,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/banking", tags=["Banking"])
 
 
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
-
-async def get_current_user_id() -> str:
-    """Get current user ID from auth context"""
-    # TODO: Implement real auth
-    return "test_user"
+def _banking_user_id(current_user: User) -> str:
+    return str(current_user.id)
 
 
 # ============================================================================
 # BANK ACCOUNT ENDPOINTS
 # ============================================================================
 
+
 @router.post("/accounts/connect", response_model=BankAccountResponse)
-async def connect_bank_account(
+def connect_bank_account(
     request: BankAccountConnect,
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Connect new bank account via Open Banking API
-    
-    Supported banks:
-    - Nubank (Brazil) - 70M+ users
-    - Mercado Pago (multi-country)
-    - Lemon (Mexico)
-    - Belo (Argentina)
-    """
+    """Connect new bank account via Open Banking API."""
+    user_id = _banking_user_id(current_user)
     try:
-        # Validate bank type
         valid_banks = [b.value for b in BankType]
         if request.bank_type not in valid_banks:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid bank type. Supported: {', '.join(valid_banks)}"
+                detail=f"Invalid bank type. Supported: {', '.join(valid_banks)}",
             )
-        
-        # Create account
+
         account = BankAccount(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -92,102 +80,92 @@ async def connect_bank_account(
             api_secret=request.api_secret,
             sync_status="pending",
         )
-        
+
         db.add(account)
-        await db.commit()
-        await db.refresh(account)
-        
-        logger.info(f"Connected {request.bank_type} account for user {user_id}")
-        
-        return BankAccountResponse.from_orm(account)
+        db.commit()
+        db.refresh(account)
+
+        logger.info("Connected %s account for user %s", request.bank_type, user_id)
+        return BankAccountResponse.model_validate(account)
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Connect account failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise server_error(logger, e) from e
 
 
 @router.get("/accounts", response_model=list[BankAccountResponse])
-async def list_bank_accounts(
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+def list_bank_accounts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """List all connected bank accounts"""
+    """List all connected bank accounts."""
+    user_id = _banking_user_id(current_user)
     try:
         stmt = select(BankAccount).where(BankAccount.user_id == user_id)
-        result = await db.execute(stmt)
-        accounts = result.scalars().all()
-        
-        return [BankAccountResponse.from_orm(acc) for acc in accounts]
-    except Exception as e:
-        logger.error(f"List accounts failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/accounts/{account_id}", response_model=BankAccountResponse)
-async def get_bank_account(
-    account_id: str = Path(...),
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    """Get specific bank account details"""
-    try:
-        stmt = select(BankAccount).where(
-            BankAccount.id == account_id,
-            BankAccount.user_id == user_id
-        )
-        result = await db.execute(stmt)
-        account = result.scalar_one_or_none()
-        
-        if not account:
-            raise HTTPException(status_code=404, detail="Account not found")
-        
-        return BankAccountResponse.from_orm(account)
+        accounts = db.execute(stmt).scalars().all()
+        return [BankAccountResponse.model_validate(acc) for acc in accounts]
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Get account failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e) from e
+
+
+@router.get("/accounts/{account_id}", response_model=BankAccountResponse)
+def get_bank_account(
+    account_id: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get specific bank account details."""
+    user_id = _banking_user_id(current_user)
+    try:
+        stmt = select(BankAccount).where(
+            BankAccount.id == account_id,
+            BankAccount.user_id == user_id,
+        )
+        account = db.execute(stmt).scalar_one_or_none()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        return BankAccountResponse.model_validate(account)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise server_error(logger, e) from e
 
 
 @router.post("/accounts/{account_id}/sync", response_model=BankAccountSyncResponse)
-async def sync_bank_transactions(
+def sync_bank_transactions(
     account_id: str = Path(...),
-    request: BankAccountSyncRequest = None,
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    body: BankAccountSyncRequest | None = Body(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Sync transactions from bank account
-    
-    Fetches recent deposits/withdrawals from connected bank
-    """
+    """Sync transactions from bank account."""
+    user_id = _banking_user_id(current_user)
+    req = body if body is not None else BankAccountSyncRequest()
     try:
-        # Get account
         stmt = select(BankAccount).where(
             BankAccount.id == account_id,
-            BankAccount.user_id == user_id
+            BankAccount.user_id == user_id,
         )
-        result = await db.execute(stmt)
-        account = result.scalar_one_or_none()
-        
+        account = db.execute(stmt).scalar_one_or_none()
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
-        
-        # Update sync status
+
+        previous_last_sync = account.last_sync
         account.sync_status = "syncing"
         account.last_sync = datetime.utcnow()
-        
-        # TODO: Call actual bank API via connector
-        # For now, simulate sync
+
         synced_txns = 0
         new_deposits = 0
         new_withdrawals = 0
-        
-        # Mock: Create some test transactions
-        if request.force_full_sync or (datetime.utcnow() - (account.last_sync or datetime.utcnow())).days >= 1:
-            # Create example transactions
+
+        if req.force_full_sync or (
+            previous_last_sync is None
+            or (datetime.utcnow() - previous_last_sync).days >= 1
+        ):
             for i in range(3):
                 txn = BankTransaction(
                     id=str(uuid.uuid4()),
@@ -206,149 +184,127 @@ async def sync_bank_transactions(
                     new_deposits += 1
                 else:
                     new_withdrawals += 1
-        
+
         account.sync_status = "synced"
         db.add(account)
-        await db.commit()
-        
-        logger.info(f"Synced {synced_txns} transactions for account {account_id}")
-        
+        db.commit()
+        db.refresh(account)
+
+        logger.info("Synced %s transactions for account %s", synced_txns, account_id)
         return BankAccountSyncResponse(
             account_id=account.id,
             transactions_synced=synced_txns,
             new_deposits=new_deposits,
             new_withdrawals=new_withdrawals,
-            last_sync=account.last_sync,
+            last_sync=account.last_sync or datetime.utcnow(),
             status="success" if synced_txns > 0 else "no_new_transactions",
         )
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Sync failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise server_error(logger, e) from e
 
 
 @router.delete("/accounts/{account_id}")
-async def disconnect_bank_account(
+def disconnect_bank_account(
     account_id: str = Path(...),
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Disconnect bank account"""
+    """Disconnect bank account."""
+    user_id = _banking_user_id(current_user)
     try:
         stmt = select(BankAccount).where(
             BankAccount.id == account_id,
-            BankAccount.user_id == user_id
+            BankAccount.user_id == user_id,
         )
-        result = await db.execute(stmt)
-        account = result.scalar_one_or_none()
-        
+        account = db.execute(stmt).scalar_one_or_none()
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
-        
-        # Delete transactions and matches first (cascade)
-        await db.delete(account)
-        await db.commit()
-        
+        db.delete(account)
+        db.commit()
         return {"status": "disconnected", "account_id": account_id}
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Disconnect failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise server_error(logger, e) from e
 
 
 # ============================================================================
 # BANK TRANSACTION ENDPOINTS
 # ============================================================================
 
+
 @router.get("/transactions", response_model=list[BankTransactionResponse])
-async def list_bank_transactions(
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+def list_bank_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     account_id: Optional[str] = Query(None),
     type: Optional[str] = Query(None),
     min_amount: Optional[Decimal] = Query(None),
     max_amount: Optional[Decimal] = Query(None),
     days: int = Query(30),
 ):
-    """
-    List bank transactions with filtering
-    
-    Query params:
-    - account_id: Filter by account
-    - type: deposit, withdrawal, transfer, etc.
-    - min_amount / max_amount: Amount range
-    - days: Look back N days (default 30)
-    """
+    """List bank transactions with filtering."""
+    user_id = _banking_user_id(current_user)
     try:
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
-        # First get user's accounts
+
         stmt = select(BankAccount).where(BankAccount.user_id == user_id)
-        result = await db.execute(stmt)
-        accounts = result.scalars().all()
+        accounts = db.execute(stmt).scalars().all()
         account_ids = [a.id for a in accounts]
-        
         if not account_ids:
             return []
-        
-        # Build filters
+
         filters = [
             BankTransaction.account_id.in_(account_ids),
             BankTransaction.date >= cutoff_date,
         ]
-        
+
         if account_id:
             if account_id not in account_ids:
                 raise HTTPException(status_code=403, detail="Account not found")
             filters.append(BankTransaction.account_id == account_id)
-        
+
         if type:
             filters.append(BankTransaction.type == type)
-        
         if min_amount:
             filters.append(BankTransaction.amount >= min_amount)
-        
         if max_amount:
             filters.append(BankTransaction.amount <= max_amount)
-        
-        # Get transactions
-        stmt = select(BankTransaction).where(and_(*filters)).order_by(BankTransaction.date.desc())
-        result = await db.execute(stmt)
-        transactions = result.scalars().all()
-        
-        return [BankTransactionResponse.from_orm(t) for t in transactions]
+
+        stmt_tx = (
+            select(BankTransaction).where(and_(*filters)).order_by(BankTransaction.date.desc())
+        )
+        transactions = db.execute(stmt_tx).scalars().all()
+        return [BankTransactionResponse.model_validate(t) for t in transactions]
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"List transactions failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e) from e
 
 
 # ============================================================================
 # TRANSACTION MATCHING ENDPOINTS
 # ============================================================================
 
+
 @router.post("/match", response_model=TransactionMatchResponse)
-async def create_transaction_match(
+def create_transaction_match(
     request: TransactionMatchRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Manually match crypto withdrawal to bank deposit
-    
-    Links crypto withdrawal from exchange to fiat deposit in bank
-    """
+    """Manually match crypto withdrawal to bank deposit."""
     try:
-        # Calculate time delta
-        crypto_date = datetime.utcnow()  # Would come from request
+        crypto_date = datetime.utcnow()
         fiat_date = datetime.utcnow()
         time_delta = (fiat_date - crypto_date).total_seconds() / 3600
-        
+
         match = TransactionMatch(
             id=str(uuid.uuid4()),
             crypto_withdrawal_id=request.crypto_withdrawal_id,
@@ -362,84 +318,67 @@ async def create_transaction_match(
             crypto_date=crypto_date,
             fiat_date=fiat_date,
             time_delta_hours=time_delta,
-            confidence=1.0,  # Manual match = high confidence
+            confidence=1.0,
             match_status="matched",
             notes=request.notes or "",
         )
-        
+
         db.add(match)
-        await db.commit()
-        await db.refresh(match)
-        
-        logger.info(f"Created match {match.id}")
-        
-        return TransactionMatchResponse.from_orm(match)
+        db.commit()
+        db.refresh(match)
+        logger.info("Created match %s", match.id)
+        return TransactionMatchResponse.model_validate(match)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Create match failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise server_error(logger, e) from e
 
 
 @router.post("/match-auto", response_model=TransactionMatchAutoResponse)
-async def auto_match_transactions(
+def auto_match_transactions(
     request: TransactionMatchAutoRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Automatically match crypto withdrawals to bank deposits
-    
-    Uses smart matching algorithm:
-    - Amount tolerance (e.g., ±2%)
-    - Time window (e.g., 24 hours)
-    - Counterparty analysis
-    """
+    """Automatically match crypto withdrawals to bank deposits."""
+    user_id = _banking_user_id(current_user)
     try:
-        # Get user's transactions
         account_stmt = select(BankAccount).where(BankAccount.user_id == user_id)
-        result = await db.execute(account_stmt)
-        accounts = result.scalars().all()
+        accounts = db.execute(account_stmt).scalars().all()
         account_ids = [a.id for a in accounts]
-        
-        # Get deposits
+
         txn_stmt = select(BankTransaction).where(
             BankTransaction.account_id.in_(account_ids),
-            BankTransaction.type == "deposit"
+            BankTransaction.type == "deposit",
         )
-        result = await db.execute(txn_stmt)
-        deposits = result.scalars().all()
-        
-        # Get withdrawals
-        withdrawal_stmt = select(CryptoWithdrawal).where(
-            CryptoWithdrawal.user_id == user_id
-        )
-        result = await db.execute(withdrawal_stmt)
-        withdrawals = result.scalars().all()
-        
-        # Smart matching
-        matches = []
+        deposits = db.execute(txn_stmt).scalars().all()
+
+        withdrawal_stmt = select(CryptoWithdrawal).where(CryptoWithdrawal.user_id == user_id)
+        withdrawals = db.execute(withdrawal_stmt).scalars().all()
+
+        matches: list[TransactionMatch] = []
         high_confidence = 0
         medium_confidence = 0
-        
+
         for withdrawal in withdrawals:
             for deposit in deposits:
-                # Amount tolerance check
-                amount_diff_pct = abs(
-                    float((withdrawal.amount_in_usd - deposit.amount) / withdrawal.amount_in_usd)
-                ) * 100
-                
+                if withdrawal.amount_in_usd and withdrawal.amount_in_usd > 0:
+                    amount_diff_pct = abs(
+                        float((withdrawal.amount_in_usd - deposit.amount) / withdrawal.amount_in_usd)
+                    ) * 100
+                else:
+                    continue
+
                 if amount_diff_pct > request.tolerance_percent:
                     continue
-                
-                # Time window check
+
                 time_diff = abs((deposit.date - withdrawal.date_time).total_seconds() / 3600)
                 if time_diff > request.time_window_hours:
                     continue
-                
-                # Confidence score
+
                 confidence = 1.0 - (amount_diff_pct / 100)
-                
-                # Create match
                 match = TransactionMatch(
                     id=str(uuid.uuid4()),
                     crypto_withdrawal_id=withdrawal.id,
@@ -448,7 +387,9 @@ async def auto_match_transactions(
                     crypto_currency=withdrawal.asset,
                     fiat_amount=deposit.amount,
                     fiat_currency=deposit.currency,
-                    exchange_rate=Decimal(str(withdrawal.amount_in_usd / withdrawal.amount)),
+                    exchange_rate=Decimal(str(withdrawal.amount_in_usd / withdrawal.amount))
+                    if withdrawal.amount and withdrawal.amount != 0
+                    else Decimal(0),
                     fees_paid=Decimal(0),
                     crypto_date=withdrawal.date_time,
                     fiat_date=deposit.date,
@@ -456,90 +397,84 @@ async def auto_match_transactions(
                     confidence=confidence,
                     match_status="matched",
                 )
-                
                 db.add(match)
                 matches.append(match)
-                
                 if confidence >= 0.95:
                     high_confidence += 1
                 else:
                     medium_confidence += 1
-        
-        await db.commit()
-        
+
+        db.commit()
+        for m in matches:
+            db.refresh(m)
+
         return TransactionMatchAutoResponse(
             matches_found=len(matches),
             high_confidence_matches=high_confidence,
             medium_confidence_matches=medium_confidence,
-            matches=[TransactionMatchResponse.from_orm(m) for m in matches],
+            matches=[TransactionMatchResponse.model_validate(m) for m in matches],
         )
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
-        await db.rollback()
-        logger.error(f"Auto match failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise server_error(logger, e) from e
 
 
 @router.get("/matches", response_model=list[TransactionMatchResponse])
-async def list_transaction_matches(
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+def list_transaction_matches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     min_confidence: float = Query(0.0),
 ):
-    """List all transaction matches"""
+    """List transaction matches for the current user's bank data only."""
+    user_id = _banking_user_id(current_user)
     try:
-        stmt = select(TransactionMatch).where(
-            TransactionMatch.confidence >= min_confidence
-        ).order_by(TransactionMatch.created_at.desc())
-        result = await db.execute(stmt)
-        matches = result.scalars().all()
-        
-        return [TransactionMatchResponse.from_orm(m) for m in matches]
+        stmt = (
+            select(TransactionMatch)
+            .join(BankTransaction, TransactionMatch.bank_deposit_id == BankTransaction.id)
+            .join(BankAccount, BankTransaction.account_id == BankAccount.id)
+            .where(
+                BankAccount.user_id == user_id,
+                TransactionMatch.confidence >= min_confidence,
+            )
+            .order_by(TransactionMatch.created_at.desc())
+        )
+        matches = db.execute(stmt).scalars().all()
+        return [TransactionMatchResponse.model_validate(m) for m in matches]
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"List matches failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e) from e
 
-
-# ============================================================================
-# CYCLE DASHBOARD ENDPOINT
-# ============================================================================
 
 @router.get("/cycle-dashboard", response_model=CompleteCycleDashboard)
-async def get_cycle_dashboard(
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+def get_cycle_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Get complete crypto → fiat cycle dashboard
-    
-    Shows all 7 stages:
-    1. Holdings (portfolio)
-    2. Exchange connection
-    3. Crypto withdrawal
-    4. Blockchain confirmation
-    5. Bank deposit
-    6. Transaction matching
-    7. Tax ready
-    """
+    """Complete crypto to fiat cycle dashboard."""
+    user_id = _banking_user_id(current_user)
     try:
-        # Calculate metrics
         account_stmt = select(BankAccount).where(BankAccount.user_id == user_id)
-        result = await db.execute(account_stmt)
-        accounts = result.scalars().all()
-        
-        withdrawal_stmt = select(CryptoWithdrawal).where(
-            CryptoWithdrawal.user_id == user_id
+        accounts = db.execute(account_stmt).scalars().all()
+
+        withdrawal_stmt = select(CryptoWithdrawal).where(CryptoWithdrawal.user_id == user_id)
+        withdrawals = db.execute(withdrawal_stmt).scalars().all()
+
+        match_stmt = (
+            select(TransactionMatch)
+            .join(BankTransaction, TransactionMatch.bank_deposit_id == BankTransaction.id)
+            .join(BankAccount, BankTransaction.account_id == BankAccount.id)
+            .where(BankAccount.user_id == user_id)
         )
-        result = await db.execute(withdrawal_stmt)
-        withdrawals = result.scalars().all()
-        
-        match_stmt = select(TransactionMatch)
-        result = await db.execute(match_stmt)
-        matches = result.scalars().all()
-        
-        total_withdrawn = sum(w.amount_in_usd for w in withdrawals)
+        matches = db.execute(match_stmt).scalars().all()
+
+        total_withdrawn = sum(w.amount_in_usd for w in withdrawals if w.amount_in_usd)
         total_deposited = sum(m.fiat_amount for m in matches)
         total_fees = sum(m.fees_paid for m in matches)
-        
+
         return CompleteCycleDashboard(
             user_id=user_id,
             total_positions=len(accounts),
@@ -547,49 +482,56 @@ async def get_cycle_dashboard(
             total_deposited_fiat=Decimal(str(total_deposited)),
             total_fees=Decimal(str(total_fees)),
             matched_cycles=len(matches),
-            pending_matches=len(withdrawals) - len(matches),
-            tax_ready=len(matches) > 0 and len([m for m in matches if m.confidence > 0.95]) == len(matches),
-            stages=[],  # Populated with actual stage data
+            pending_matches=max(0, len(withdrawals) - len(matches)),
+            tax_ready=len(matches) > 0
+            and len([m for m in matches if m.confidence > 0.95]) == len(matches),
+            stages=[],
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Get dashboard failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e) from e
 
-
-# ============================================================================
-# ANALYTICS
-# ============================================================================
 
 @router.get("/metrics", response_model=BankingMetrics)
-async def get_banking_metrics(
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+def get_banking_metrics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Get banking integration metrics"""
+    """Banking integration metrics (scoped to current user)."""
+    user_id = _banking_user_id(current_user)
     try:
-        # Get accounts
         account_stmt = select(BankAccount).where(BankAccount.user_id == user_id)
-        result = await db.execute(account_stmt)
-        accounts = result.scalars().all()
-        
-        # Get transactions
+        accounts = db.execute(account_stmt).scalars().all()
         account_ids = [a.id for a in accounts]
-        txn_stmt = select(BankTransaction).where(
-            BankTransaction.account_id.in_(account_ids)
+
+        if not account_ids:
+            return BankingMetrics(
+                connected_banks=0,
+                synced_accounts=0,
+                total_transactions=0,
+                unmatched_transactions=0,
+                matched_deposits=0,
+                average_match_confidence=0,
+                total_volume=Decimal(0),
+            )
+
+        txn_stmt = select(BankTransaction).where(BankTransaction.account_id.in_(account_ids))
+        transactions = db.execute(txn_stmt).scalars().all()
+
+        match_stmt = (
+            select(TransactionMatch)
+            .join(BankTransaction, TransactionMatch.bank_deposit_id == BankTransaction.id)
+            .join(BankAccount, BankTransaction.account_id == BankAccount.id)
+            .where(BankAccount.user_id == user_id)
         )
-        result = await db.execute(txn_stmt)
-        transactions = result.scalars().all()
-        
-        # Get matches
-        match_stmt = select(TransactionMatch)
-        result = await db.execute(match_stmt)
-        matches = result.scalars().all()
-        
+        matches = db.execute(match_stmt).scalars().all()
+
         synced = sum(1 for a in accounts if a.sync_status == "synced")
         unmatched = len([t for t in transactions if not t.matched_crypto_transaction_id])
         avg_confidence = sum(m.confidence for m in matches) / len(matches) if matches else 0
         total_volume = sum(m.fiat_amount for m in matches)
-        
+
         return BankingMetrics(
             connected_banks=len(accounts),
             synced_accounts=synced,
@@ -599,18 +541,15 @@ async def get_banking_metrics(
             average_match_confidence=avg_confidence,
             total_volume=Decimal(str(total_volume)),
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Get metrics failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise server_error(logger, e) from e
 
-
-# ============================================================================
-# HEALTH
-# ============================================================================
 
 @router.get("/health")
-async def health_check():
-    """Health check endpoint"""
+def health_check():
+    """Health check endpoint."""
     return {
         "status": "healthy",
         "service": "banking",

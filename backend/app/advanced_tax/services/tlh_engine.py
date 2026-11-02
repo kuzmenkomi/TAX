@@ -205,7 +205,7 @@ class TLHEngine:
             )
             
             # Get explanation
-            explanation = self.scorer.get_score_explanation(score, breakdown)
+            explanation = self.scorer.get_score_explanation(breakdown)
             
             # Create recommendation
             rec = TLHRecommendation(

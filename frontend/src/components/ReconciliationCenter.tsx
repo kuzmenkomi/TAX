@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
@@ -17,8 +17,11 @@ import {
   ChevronUp,
   Sparkles,
   RefreshCw,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import apiV1, { apiFetch } from '../api/v1';
+import { SkeletonCard, SkeletonTable, SkeletonText } from './ui/Skeleton';
 
 interface SuggestedMatch {
   source_run_id: number;
@@ -57,23 +60,23 @@ interface ReconciliationStats {
 }
 
 const RESOLUTION_OPTIONS = [
-  { key: 'PURCHASE', label: 'Purchase', icon: ShoppingCart, color: 'text-[#4d7aff] bg-[#4d7aff]/10 border-[#4d7aff]/20' },
-  { key: 'GIFT', label: 'Gift / Airdrop', icon: Gift, color: 'text-[#f0a86a] bg-[#f0a86a]/10 border-[#f0a86a]/20' },
-  { key: 'INTERNAL_TRANSFER', label: 'Internal Transfer', icon: Wallet, color: 'text-[#6af0c8] bg-[#6af0c8]/10 border-[#6af0c8]/20' },
+  { key: 'PURCHASE', label: 'Purchase', icon: ShoppingCart, color: 'text-[#0077ff] bg-[#0077ff]/10 border-[#0077ff]/20' },
+  { key: 'GIFT', label: 'Gift / Airdrop', icon: Gift, color: 'text-[#f59e0b] bg-[#f59e0b]/10 border-[#f59e0b]/20' },
+  { key: 'INTERNAL_TRANSFER', label: 'Internal Transfer', icon: Wallet, color: 'text-[var(--accent)] bg-[var(--accent)]/10 border-[var(--accent)]/20' },
   { key: 'STAKING_REWARD', label: 'Staking Reward', icon: Zap, color: 'text-[#a78bfa] bg-[#a78bfa]/10 border-[#a78bfa]/20' },
-  { key: 'IGNORE', label: 'Ignore', icon: XCircle, color: 'text-text3 bg-brand-green-500/5 border-border' },
+  { key: 'IGNORE', label: 'Ignore', icon: XCircle, color: 'text-[var(--text3)] bg-[var(--accent-dim)] border-[var(--border)]' },
 ];
 
 function severityIcon(sev: string) {
-  if (sev === 'error') return <AlertOctagon className="w-4 h-4 text-[#f06a6a]" />;
-  if (sev === 'warning') return <AlertTriangle className="w-4 h-4 text-[#f0a86a]" />;
-  return <Info className="w-4 h-4 text-[#4d7aff]" />;
+  if (sev === 'error') return <AlertOctagon className="w-4 h-4" style={{ color: 'var(--danger)' }} />;
+  if (sev === 'warning') return <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />;
+  return <Info className="w-4 h-4" style={{ color: 'var(--info)' }} />;
 }
 
 function severityBadgeClass(sev: string) {
-  if (sev === 'error') return 'bg-[#f06a6a]/10 text-[#f06a6a] border-[#f06a6a]/15';
-  if (sev === 'warning') return 'bg-[#f0a86a]/10 text-[#f0a86a] border-[#f0a86a]/15';
-  return 'bg-[#4d7aff]/10 text-[#4d7aff] border-[#4d7aff]/15';
+  if (sev === 'error') return 'bg-[rgba(255,77,106,0.1)] text-[#ff4d6a] border-[#ff4d6a]/15';
+  if (sev === 'warning') return 'bg-[rgba(245,158,11,0.1)] text-[#f59e0b] border-[#f59e0b]/15';
+  return 'bg-[rgba(0,119,255,0.1)] text-[#0077ff] border-[#0077ff]/15';
 }
 
 function issueTypeLabel(type: string): string {
@@ -102,7 +105,7 @@ function issueSmartHint(type: string, asset: string | null): string {
 
 function ConfidenceBar({ confidence }: { confidence: number }) {
   const pct = Math.round(confidence * 100);
-  const color = pct >= 80 ? 'bg-[#6af0c8]' : pct >= 50 ? 'bg-[#f0a86a]' : 'bg-[#f06a6a]';
+  const color = pct >= 80 ? 'bg-[var(--accent)]' : pct >= 50 ? 'bg-[#f59e0b]' : 'bg-[#ff4d6a]';
   return (
     <div className="flex items-center gap-2">
       <div className="w-16 h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg2)' }}>
@@ -114,9 +117,14 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
 }
 
 
-export function ReconciliationCenter() {
-  const { analyzeResult } = useAppContext();
-  const runId = analyzeResult?.analysis_run_id;
+export function ReconciliationCenter({ setActiveTab, onScanReady }: {
+  setActiveTab?: (tab: string, subTab?: any) => void;
+  onScanReady?: (fn: () => void) => void;
+}) {
+  const { analyzeResult, dataVersion } = useAppContext();
+  const [fallbackRunId, setFallbackRunId] = useState<number | null>(null);
+  const [runLookupLoading, setRunLookupLoading] = useState(true);
+  const runId = analyzeResult?.analysis_run_id ?? fallbackRunId;
 
   const [issues, setIssues] = useState<ReconciliationIssue[]>([]);
   const [stats, setStats] = useState<ReconciliationStats | null>(null);
@@ -127,14 +135,40 @@ export function ReconciliationCenter() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('all');
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadLatestRunId() {
+      if (analyzeResult?.analysis_run_id) {
+        setFallbackRunId(null);
+        setRunLookupLoading(false);
+        return;
+      }
+
+      setRunLookupLoading(true);
+      try {
+        const runData = await apiV1.analysis.listRuns();
+        const latestRunId = Number(runData?.runs?.[0]?.run_id ?? 0) || null;
+        if (active) setFallbackRunId(latestRunId);
+      } catch {
+        if (active) setFallbackRunId(null);
+      } finally {
+        if (active) setRunLookupLoading(false);
+      }
+    }
+
+    loadLatestRunId();
+    return () => { active = false; };
+  }, [analyzeResult?.analysis_run_id, dataVersion]);
+
   const loadIssues = useCallback(async () => {
     if (!runId) return;
     setLoading(true);
     try {
       const resolvedParam = filter === 'all' ? undefined : filter === 'resolved';
-      const res = await fetch(`/api/v1/reconciliation/issues/${runId}${resolvedParam !== undefined ? `?resolved=${resolvedParam}` : ''}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
+      const res = await apiFetch(
+        `/reconciliation/issues/${runId}${resolvedParam !== undefined ? `?resolved=${resolvedParam}` : ''}`,
+      );
       const data = await res.json();
       setIssues(data.issues || []);
       setStats(data.stats || null);
@@ -147,30 +181,38 @@ export function ReconciliationCenter() {
 
   useEffect(() => { loadIssues(); }, [loadIssues]);
 
-  const handleScan = async () => {
+  const handleScan = useCallback(async () => {
     if (!runId) return;
     setScanning(true);
     try {
-      await fetch(`/api/v1/reconciliation/scan/${runId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
+      await apiFetch(`/reconciliation/scan/${runId}`, { method: 'POST' });
       await loadIssues();
     } catch (err) {
       console.error('Scan failed', err);
     } finally {
       setScanning(false);
     }
-  };
+  }, [runId, loadIssues]);
+
+  // Register handleScan with parent (for "Re-scan All" button)
+  useEffect(() => { onScanReady?.(handleScan); }, [handleScan, onScanReady]);
+
+  // Auto-scan when new data is imported (dataVersion bumped)
+  // Use a ref to skip the very first mount (initial scan handled by loadIssues)
+  const isFirstRun = React.useRef(true);
+  useEffect(() => {
+    if (isFirstRun.current) { isFirstRun.current = false; return; }
+    if (!runId) return;
+    // Small delay so the backend has time to process the import
+    const timer = setTimeout(() => handleScan(), 800);
+    return () => clearTimeout(timer);
+  }, [dataVersion]);
 
   const handleAutoMatch = async () => {
     if (!runId) return;
     setAutoMatching(true);
     try {
-      await fetch(`/api/v1/reconciliation/auto-match/${runId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
+      await apiFetch(`/reconciliation/auto-match/${runId}`, { method: 'POST' });
       await loadIssues();
     } catch (err) {
       console.error('Auto-match failed', err);
@@ -182,12 +224,8 @@ export function ReconciliationCenter() {
   const handleResolve = async (issueId: number, resolution: string) => {
     setResolving(issueId);
     try {
-      await fetch('/api/v1/reconciliation/resolve', {
+      await apiFetch('/reconciliation/resolve', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
         body: JSON.stringify({ issue_id: issueId, resolution }),
       });
       await loadIssues();
@@ -198,16 +236,105 @@ export function ReconciliationCenter() {
     }
   };
 
+  if (runLookupLoading || (runId && loading && issues.length === 0 && !stats)) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <SkeletonText lines={2} className="w-[320px]" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <SkeletonCard key={idx} />
+          ))}
+        </div>
+        <SkeletonTable rows={4} />
+      </div>
+    );
+  }
+
   if (!runId) {
     return (
-      <div className="text-center py-24">
-        <div className="w-20 h-20 mx-auto mb-5 rounded-2xl border flex items-center justify-center" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <ArrowRightLeft className="w-8 h-8" style={{ color: 'var(--text3)' }} />
+      <div className="space-y-[32px] animate-in fade-in duration-700">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+           <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-[12px]">
+                 <div className="w-[32px] h-[32px] rounded-full bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+                    <CheckCircle2 size={16} className="text-[var(--accent)]" />
+                 </div>
+                 <div>
+                    <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}> — </p>
+                    <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>Matched</p>
+                 </div>
+              </div>
+           </div>
+           <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-[12px]">
+                  <div className="w-[32px] h-[32px] rounded-full bg-[rgba(245,158,11,0.1)] flex items-center justify-center">
+                     <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
+                 </div>
+                 <div>
+                    <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}> — </p>
+                    <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>Unmatched</p>
+                 </div>
+              </div>
+           </div>
+           <div className="p-[20px] rounded-[16px] flex items-center justify-between" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-[12px]">
+                 <div className="w-[32px] h-[32px] rounded-full flex items-center justify-center" style={{ background: 'var(--card2)' }}>
+                    <ArrowRightLeft size={16} style={{ color: 'var(--text3)' }} />
+                 </div>
+                 <div>
+                    <p className="text-[14px] font-black" style={{ color: 'var(--text)' }}> — </p>
+                    <p className="text-[10px] uppercase font-bold" style={{ color: 'var(--text3)' }}>Missing</p>
+                 </div>
+              </div>
+           </div>
         </div>
-        <h2 className="text-2xl font-syne font-bold mb-2" style={{ color: 'var(--text)' }}>Transaction Reconciliation</h2>
-        <p className="text-[14px] max-w-md mx-auto" style={{ color: 'var(--text3)' }}>
-          Upload and analyze your transactions first. Then come here to resolve any issues with missing data.
-        </p>
+
+        <div className="flex flex-col items-center justify-center py-[60px] text-center max-w-[600px] mx-auto">
+           <div className="w-[80px] h-[80px] rounded-[24px] flex items-center justify-center mb-[24px] shadow-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <ArrowRightLeft size={32} className="opacity-40" style={{ color: 'var(--text2)' }} />
+           </div>
+           
+           <h2 className="font-syne font-black text-[28px] mb-[12px]" style={{ color: 'var(--text)' }}>No data to reconcile</h2>
+           <p className="text-[14px] leading-relaxed mb-[32px]" style={{ color: 'var(--text2)' }}>
+              Connect your wallets and exchanges so Declairo can automatically match on-chain transactions with exchange records and flag discrepancies.
+           </p>
+           
+           <div className="flex gap-[12px]">
+              <button 
+                onClick={() => setActiveTab?.('integrations', 'WALLETS')}
+                className="flex items-center gap-[12px] p-[16px] rounded-[16px] transition-all group w-[220px]"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(16, 185, 129,0.4)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                 <div className="w-[36px] h-[36px] rounded-[10px] bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+                    <LinkIcon size={18} className="text-[var(--accent)]" />
+                 </div>
+                 <div className="text-left">
+                    <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Connect Wallet</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text3)' }}>ETH, BTC, SOL, and more</p>
+                 </div>
+                 <ChevronDown size={14} className="ml-auto group-hover:text-[var(--accent)] -rotate-90" style={{ color: 'var(--text3)' }} />
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab?.('integrations', 'EXCHANGES')}
+                className="flex items-center gap-[12px] p-[16px] rounded-[16px] transition-all group w-[220px]"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(16, 185, 129,0.4)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                 <div className="w-[36px] h-[36px] rounded-[10px] bg-[rgba(16, 185, 129,0.1)] flex items-center justify-center">
+                    <Zap size={18} className="text-[var(--accent)]" />
+                 </div>
+                 <div className="text-left">
+                    <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Import Transactions</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text3)' }}>CSV or API sync</p>
+                 </div>
+                 <ChevronDown size={14} className="ml-auto group-hover:text-[var(--accent)] -rotate-90" style={{ color: 'var(--text3)' }} />
+              </button>
+           </div>
+        </div>
       </div>
     );
   }
@@ -255,7 +382,7 @@ export function ReconciliationCenter() {
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden mb-8" style={{ background: 'var(--bg2)' }}>
               <motion.div
-                className="h-full bg-gradient-to-r from-brand-green-500 to-[#6af0c8] rounded-full"
+                className="h-full bg-gradient-to-r from-brand-green-500 to-[var(--accent)] rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${stats.progress_pct}%` }}
                 transition={{ duration: 1, ease: 'easeOut' }}

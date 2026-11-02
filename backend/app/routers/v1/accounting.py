@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.core.db import get_db
-from app.models import User, LotMatch
+from app.models import User
 from app.services.accounting_service import get_matches_for_transaction, get_matches_for_run
 
 router = APIRouter(prefix="/accounting", tags=["Accounting"])

@@ -125,6 +125,38 @@ def upgrade() -> None:
     op.create_index(op.f('ix_analysis_runs_id'), 'analysis_runs', ['id'], unique=False)
     op.create_index(op.f('ix_analysis_runs_user_id'), 'analysis_runs', ['user_id'], unique=False)
 
+    # Create transactions table
+    op.create_table(
+        'transactions',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.Column('run_id', sa.Integer(), nullable=True),
+        sa.Column('timestamp', sa.DateTime(), nullable=False),
+        sa.Column('asset', sa.String(length=20), nullable=False),
+        sa.Column('tx_type', sa.String(length=50), nullable=False),
+        sa.Column('amount', sa.Numeric(precision=20, scale=8), nullable=False),
+        sa.Column('fee', sa.Numeric(precision=20, scale=8), nullable=True, server_default='0'),
+        sa.Column('price', sa.Numeric(precision=12, scale=2), nullable=True),
+        sa.Column('total_value', sa.Numeric(precision=14, scale=2), nullable=False),
+        sa.Column('from_wallet', sa.String(length=255), nullable=True),
+        sa.Column('to_wallet', sa.String(length=255), nullable=True),
+        sa.Column('external_id', sa.String(length=255), nullable=True),
+        sa.Column('audit_hash', sa.String(length=64), nullable=True),
+        sa.Column('block_number', sa.BigInteger(), nullable=True),
+        sa.Column('proof_url', sa.Text(), nullable=True),
+        sa.Column('custom_tag', sa.String(length=64), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(['run_id'], ['analysis_runs.id'], ),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('external_id'),
+    )
+    op.create_index(op.f('ix_transactions_id'), 'transactions', ['id'], unique=False)
+    op.create_index(op.f('ix_transactions_user_id'), 'transactions', ['user_id'], unique=False)
+    op.create_index(op.f('ix_transactions_run_id'), 'transactions', ['run_id'], unique=False)
+    op.create_index(op.f('ix_transactions_timestamp'), 'transactions', ['timestamp'], unique=False)
+    op.create_index(op.f('ix_transactions_asset'), 'transactions', ['asset'], unique=False)
+
     # Create import_jobs table
     op.create_table(
         'import_jobs',
@@ -144,6 +176,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop all tables."""
+    op.drop_index(op.f('ix_transactions_asset'), table_name='transactions')
+    op.drop_index(op.f('ix_transactions_timestamp'), table_name='transactions')
+    op.drop_index(op.f('ix_transactions_run_id'), table_name='transactions')
+    op.drop_index(op.f('ix_transactions_user_id'), table_name='transactions')
+    op.drop_index(op.f('ix_transactions_id'), table_name='transactions')
+    op.drop_table('transactions')
     op.drop_index(op.f('ix_import_jobs_user_id'), table_name='import_jobs')
     op.drop_index(op.f('ix_import_jobs_id'), table_name='import_jobs')
     op.drop_table('import_jobs')

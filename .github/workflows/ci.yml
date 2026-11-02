@@ -26,8 +26,8 @@ jobs:
           pytest --cov=app --cov-config=.coveragerc --cov-report=term-missing:skip-covered --cov-report=html:../output/coverage --cov-fail-under=65 -q
         env:
           DATABASE_URL: sqlite:///./test.db
-          JWT_SECRET_KEY: ci-test-secret-key-not-for-production
-          ENCRYPTION_KEY: 4u_YAgw-wP1-rlvJg1nQkl4xBqOG4v8Q5YO3m_KvVhs=
+          JWT_SECRET_KEY: ""
+          ENCRYPTION_KEY: ""
           APP_ENV: development
 
   backend-migrate-smoke:

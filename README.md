@@ -62,3 +62,15 @@ Open <http://localhost:5173>. Vite proxies `/api` requests to the local backend.
 ## Configuration
 
 Only `.env*.example` templates belong in the repository. Local configuration, private keys, databases, backups, and generated reports are excluded through `.gitignore`. Set deployment secrets through environment variables. `VITE_*` values are public in the browser and must never contain private credentials.
+
+## Tests
+
+Install the backend test dependencies, then run the same coverage gate as CI:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements-test.txt
+cd backend
+..\.venv\Scripts\python.exe -m pytest --cov=app --cov-config=.coveragerc --cov-fail-under=65
+```
+
+Frontend checks (from `frontend/`): `npm run typecheck`, `npm test -- --run`, and `npm run build`.

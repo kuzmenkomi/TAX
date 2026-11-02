@@ -191,7 +191,7 @@ class TransactionMatchingEngine:
                 
                 if counterparty_match:
                     # Calculate confidence
-                    confidence = 1.0 - (amount_diff_pct / 100)
+                    confidence = float(Decimal("1") - (amount_diff_pct / 100))
                     confidence *= (1.0 - abs(time_delta) / rules.time_window_hours)
                     
                     candidates.append({

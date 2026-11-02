@@ -32,12 +32,12 @@ def upgrade() -> None:
     if "totp_pending" not in user_cols:
         op.add_column(
             "users",
-            sa.Column("totp_pending", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("totp_pending", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
     if "totp_enabled" not in user_cols:
         op.add_column(
             "users",
-            sa.Column("totp_enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("totp_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
     if "totp_confirmed_at" not in user_cols:
         op.add_column("users", sa.Column("totp_confirmed_at", sa.DateTime(), nullable=True))

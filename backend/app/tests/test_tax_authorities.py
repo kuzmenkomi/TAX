@@ -92,23 +92,15 @@ class TestTaxAuthorityRegistry:
 class TestSATClient:
     """Test SAT Mexico client"""
     
-    @pytest.mark.xfail(
-        reason="SAT authentication requires real government SSL certificates (not available in CI)",
-        strict=False,
-    )
     def test_authenticate(self):
-        """Test SAT authentication — requires real FIEL certificate."""
+        """Test the offline SAT client's simulated authentication state."""
         config = {"rfc": "RFC123456789", "certificate_path": "/path/to/cert.cer", "private_key_path": "/path/to/key.key"}
         client = SATClient(config)
         assert client.authenticate()
         assert client.is_authenticated()
     
-    @pytest.mark.xfail(
-        reason="SAT submission requires authenticated session with real FIEL certificate",
-        strict=False,
-    )
     def test_submit_filing_valid(self):
-        """Test submitting valid filing to SAT — requires real authentication."""
+        """Test the offline SAT client's submission result and receipt."""
         config = {"rfc": "RFC123456789", "certificate_path": "/path/to/cert.cer", "private_key_path": "/path/to/key.key"}
         client = SATClient(config)
         client.authenticate()
@@ -127,7 +119,8 @@ class TestSATClient:
         result = client.submit_filing(2024, filing_data)
         assert result.status == SubmissionStatus.SUBMITTED
         assert result.submission_id is not None
-        assert "folio" in result.receipt_number.lower()
+        assert result.receipt_number == result.submission_id
+        assert result.receipt_number.startswith("SAT")
     
     def test_compliance_check(self):
         """Test SAT compliance check"""
@@ -378,10 +371,6 @@ class TestComplianceChecks:
 class TestErrorHandling:
     """Test error handling"""
     
-    @pytest.mark.xfail(
-        reason="SAT missing_fields test depends on authenticated SAT session requiring real certificates",
-        strict=False,
-    )
     def test_missing_required_fields(self):
         """Test filing with missing required fields — requires SAT auth."""
         config = {"rfc": "RFC123456789", "certificate_path": "/path/to/cert.cer", "private_key_path": "/path/to/key.key"}
@@ -397,7 +386,8 @@ class TestErrorHandling:
         }
         
         result = client.submit_filing(2024, filing_data)
-        assert result.status == SubmissionStatus.REJECTED or result.status == SubmissionStatus.SUBMITTED
+        assert result.status == SubmissionStatus.REJECTED
+        assert result.errors
     
     def test_invalid_filing_data(self):
         """Test filing validation"""

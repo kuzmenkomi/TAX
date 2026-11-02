@@ -184,7 +184,7 @@ class TaxLossOptimizer(BaseService):
             total_costs = estimated_fees + estimated_slippage
             
             # Check 6: Tax benefit
-            tax_rate = self._get_marginal_tax_rate()
+            tax_rate = Decimal(str(self._get_marginal_tax_rate()))
             tax_benefit = loss_amount * (tax_rate / 100)
             net_benefit = tax_benefit - total_costs
             
@@ -294,7 +294,8 @@ class TaxLossOptimizer(BaseService):
                 harvest_id=harvest.id,
                 action_type='SELL',
                 status='pending',
-                planned_price=harvest.current_price,
+                asset=harvest.asset,
+                price=harvest.current_price,
                 quantity=harvest.quantity_to_sell,
             )
             

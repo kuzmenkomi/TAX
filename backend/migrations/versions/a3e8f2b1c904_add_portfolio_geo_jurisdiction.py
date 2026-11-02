@@ -31,7 +31,7 @@ def upgrade() -> None:
                 "geo_jurisdiction_applied",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("0"),
+                server_default=sa.false(),
             ),
         )
     if "country_locked" not in cols:
@@ -41,7 +41,7 @@ def upgrade() -> None:
                 "country_locked",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("0"),
+                server_default=sa.false(),
             ),
         )
     if "jurisdiction_source" not in cols:

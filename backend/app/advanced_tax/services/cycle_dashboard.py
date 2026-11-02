@@ -312,7 +312,7 @@ class CompleteCycleDashboard:
         
         # Calculate gains/losses
         total_proceeds = sum(Decimal(str(m['fiat_amount'])) for m in matches)
-        total_cost_basis = sum(Decimal(str(m['fiat_amount'])) * 0.7 for m in matches)  # Estimate
+        total_cost_basis = sum(Decimal(str(m['fiat_amount'])) * Decimal("0.7") for m in matches)  # Estimate
         realized_gains = total_proceeds - total_cost_basis
         capital_gains_tax = realized_gains * Decimal("0.15")  # 15% tax estimate
         

@@ -1,7 +1,8 @@
 import secrets
 import time
 from typing import Dict, Any, Optional
-from jose import jwt, JWTError
+import jwt
+from jwt import PyJWTError as JWTError
 from fastapi import HTTPException
 from app.core.config import get_settings
 from .base import BaseOAuthProvider

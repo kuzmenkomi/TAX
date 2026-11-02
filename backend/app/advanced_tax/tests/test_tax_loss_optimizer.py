@@ -102,8 +102,8 @@ class TestCostBasisCalculator:
         expected_avg = (Decimal("40000") + Decimal("45000") + Decimal("35000")) / 3
         assert abs(avg_cost - expected_avg) < Decimal("100")
     
-    def test_optimal_loss_uses_lifo(self, sample_lots):
-        """find_optimal_loss should choose LIFO for maximum loss"""
+    def test_optimal_loss_uses_highest_basis_for_given_lots(self, sample_lots):
+        """Choose the method with the greatest actual loss, not a fixed method."""
         from app.advanced_tax.services.cost_basis_calculator import CostBasisCalculator
         
         qty_to_sell = Decimal("1.0")
@@ -113,8 +113,10 @@ class TestCostBasisCalculator:
             sample_lots, qty_to_sell, current_price
         )
         
-        assert best_method == "LIFO"  # Should choose LIFO for max loss
-        assert loss > 0
+        # Prices are not monotonic: FIFO has the highest basis here.
+        assert best_method == "FIFO"
+        assert loss == Decimal("12500")
+        assert cost == Decimal("42500")
 
 
 class TestLiquidityChecker:
@@ -163,7 +165,7 @@ class TestLiquidityChecker:
         
         can_sell, reason = LiquidityChecker.can_sell_without_slippage(
             "BTC",
-            Decimal("1000000"),  # 1M BTC (insane)
+            Decimal("3000000000"),  # 10% of volume, in the same units
             volume_24h=Decimal("30000000000")
         )
         
@@ -189,7 +191,11 @@ class TestTaxLossOptimizer:
             loss_amount=Decimal("5000")
         )
         
-        assert score > 70
+        assert 0 < score <= 100
+        smaller_benefit = optimizer._calculate_priority_score(
+            Decimal("100"), 90, 10, Decimal("5000")
+        )
+        assert score > smaller_benefit
     
     def test_risk_assessment_low_vol(self):
         """Low volatility = low risk"""

@@ -160,7 +160,7 @@ class AuditEngine(BaseService):
         
         rules = self.db.query(VerifiedTaxRule).filter(
             VerifiedTaxRule.country == country,
-            VerifiedTaxRule.status == AuditStatus.ACTIVE,
+            VerifiedTaxRule.status == "active",
         ).all()
         
         return [

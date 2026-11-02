@@ -10,7 +10,8 @@ from fastapi.testclient import TestClient
 
 from app.accounting.avco_engine import compute_pnl_avco
 from app.accounting.pricing import PriceService
-from app.api.server import app, BACKEND_ROOT, RUNS_DIR
+from app.api.server import BACKEND_ROOT, RUNS_DIR
+from app.main import app
 from app.tax.br_reports import compute_darf_projection, compute_monthly_sales_brl
 
 
@@ -97,10 +98,6 @@ def gcap_client():
     return TestClient(app)
 
 
-@pytest.mark.xfail(
-    reason="GCAP endpoint reads from app DB session; conftest uses isolated in-memory session. Requires integration test setup.",
-    strict=False,
-)
 def test_export_gcap_smoke(gcap_client, db):
     """Smoke test for /exports/gcap/{run_id} — uses shared conftest DB session."""
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
@@ -113,13 +110,14 @@ def test_export_gcap_smoke(gcap_client, db):
     )
     df.to_csv(csv_path, index=False)
 
-    from app.models import AnalysisRun, User
+    from app.models import AnalysisRun, User, Subscription
     from app.auth import get_current_user
 
     email = f"test_{uuid4().hex}@example.com"
     user = User(email=email, hashed_password="x")
     db.add(user)
     db.flush()
+    db.add(Subscription(user_id=user.id, plan="pro", status="active"))
 
     rel = str(csv_path.relative_to(BACKEND_ROOT)).replace("\\", "/")
     run = AnalysisRun(user_id=user.id, csv_rel_path=rel, summary_json="{}")
@@ -129,13 +127,17 @@ def test_export_gcap_smoke(gcap_client, db):
     run_id = run.id
     user_id = user.id
 
+    previous_override = app.dependency_overrides.get(get_current_user)
     app.dependency_overrides[get_current_user] = lambda: User(
         id=user_id, email=email, hashed_password="x"
     )
     try:
-        resp = gcap_client.get(f"/exports/gcap/{run_id}")
+        resp = gcap_client.get(f"/api/v1/exports/gcap/{run_id}")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/csv")
-        assert b"Data da Operacao" in resp.content
+        assert resp.content == csv_path.read_bytes()
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        if previous_override is None:
+            app.dependency_overrides.pop(get_current_user, None)
+        else:
+            app.dependency_overrides[get_current_user] = previous_override

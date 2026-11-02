@@ -1,0 +1,6 @@
+[submodule "backend/repos/BittyTax"]
+	path = backend/repos/BittyTax
+	url = https://github.com/Jeremygonzal/BittyTax.git
+[submodule "backend/repos/rp2"]
+	path = backend/repos/rp2
+	url = https://github.com/eprbell/rp2.git

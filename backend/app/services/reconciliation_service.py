@@ -8,6 +8,7 @@ auto-matching and user-driven resolution workflows.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -152,6 +153,8 @@ class ReconciliationEngine:
         try:
             price_val = float(price) if price is not None else 0.0
         except (TypeError, ValueError):
+            price_val = 0.0
+        if not math.isfinite(price_val):
             price_val = 0.0
 
         if tx_type in ("BUY", "SWAP", "TRADE", "RECEIVE") and price_val <= 0:

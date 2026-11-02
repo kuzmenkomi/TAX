@@ -13,6 +13,11 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.models import User
 
 
+def _as_utc(value: datetime) -> datetime:
+    """DateTime columns return naive UTC values on SQLite and PostgreSQL."""
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
 def register_user(db: Session, email: str, password: str) -> tuple[User, str]:
     """Создаёт пользователя, возвращает (user, verification_token)."""
     from app.core.config import get_settings
@@ -173,7 +178,7 @@ def confirm_password_reset(db: Session, token: str, new_password: str) -> None:
     if (
         not user
         or not user.password_reset_expires
-        or user.password_reset_expires < datetime.now(timezone.utc)
+        or _as_utc(user.password_reset_expires) < datetime.now(timezone.utc)
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -208,7 +213,8 @@ def verify_refresh_token(db: Session, token: str) -> User:
     If a revoked token is used, it signals a potential compromise, 
     and all active tokens for the user are invalidated.
     """
-    from jose import jwt, JWTError
+    import jwt
+    from jwt import PyJWTError as JWTError
     from app.core.config import get_settings
     from app.models import RefreshToken, User
     
@@ -235,7 +241,7 @@ def verify_refresh_token(db: Session, token: str) -> User:
         logger.warning(f"SECURITY ALERT: Refresh token reuse detected for user_id {db_token.user_id}. All tokens revoked.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Security breach detected. Please login again.")
         
-    if db_token.expires_at < datetime.now(timezone.utc):
+    if _as_utc(db_token.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
     
     user = db.query(User).filter(User.email == email).first()

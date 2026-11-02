@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import bcrypt
 from cryptography.fernet import Fernet, MultiFernet, InvalidToken
-from jose import jwt
+import jwt
 
 from app.core.config import get_settings
 
